@@ -1,0 +1,20 @@
+[package]
+name = "wasmward-fixture"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[features]
+# Build the v2 variant. `version()` returns 2 and the Wasm hash changes.
+v2 = []
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
