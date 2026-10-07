@@ -1,5 +1,6 @@
 target/
 .env
 testnet.json
-.stellar/
+.stellar-keys/
 .DS_Store
+build/
