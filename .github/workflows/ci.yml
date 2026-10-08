@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add the Wasm target
+        run: rustup target add wasm32v1-none
+
+      - name: Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lints (v1 and v2)
+        run: |
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo clippy --all-targets --locked --features v2 -- -D warnings
+
+      - name: Tests (v1 and v2)
+        run: |
+          cargo test --locked
+          cargo test --locked --features v2
+
+      - name: Build both Wasm variants and check they differ
+        run: |
+          cargo build --locked --release --target wasm32v1-none -p wasmward-fixture
+          cp target/wasm32v1-none/release/wasmward_fixture.wasm v1.wasm
+          cargo build --locked --release --target wasm32v1-none -p wasmward-fixture --features v2
+          cp target/wasm32v1-none/release/wasmward_fixture.wasm v2.wasm
+          v1="$(sha256sum v1.wasm | cut -d' ' -f1)"
+          v2="$(sha256sum v2.wasm | cut -d' ' -f1)"
+          echo "v1 $v1"
+          echo "v2 $v2"
+          # The whole point of the fixture is that the two builds have different hashes.
+          if [ "$v1" = "$v2" ]; then
+            echo "v1 and v2 have the same hash; the v2 feature had no effect" >&2
+            exit 1
+          fi
