@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "network": {
+    "rpcUrl": "https://soroban-testnet.stellar.org",
+    "passphrase": "Test SDF Network ; September 2015"
+  },
+  "contracts": {
+    "fixture": {
+      "contractId": "CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPV",
+      "supported": [
+        {
+          "wasmHash": "a7a82511fa284650178b02fe3a4bafc587b95212f2f8ce647f2df5ef4cf42509",
+          "label": "v1"
+        },
+        {
+          "wasmHash": "ec040ead4e157695a16a9723a5d95a44268f1b8da4c5f6aee7bf4f218dbdc875",
+          "label": "v2"
+        }
+      ]
+    }
+  }
+}
