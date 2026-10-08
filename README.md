@@ -54,6 +54,12 @@ bash scripts/extend.sh            # about 29 days; pass a number of ledgers to c
 
 It needs `testnet.json` and the identity that `scripts/deploy.sh` created.
 
+A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml), runs [Wasmward](https://github.com/contract-version/Wasmward-backend) against the live fixture using [`fixture.wasmward.json`](fixture.wasmward.json) and `check --min-ttl-days 3`. A red run means the fixture is missing, unsupported, unreachable or has under three days left: run `scripts/extend.sh`, or `scripts/deploy.sh` if it has gone (then update `fixture.wasmward.json` and the hashes in the Wasmward repositories).
+
+## CI
+
+[`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request: `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for both the v1 and v2 builds, then builds both Wasm variants and fails if their hashes are equal.
+
 ## Tests
 
 ```bash
