@@ -18,28 +18,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Wasmward is not on npm yet, so it is built from its repository.
-      - name: Check out Wasmward
-        uses: actions/checkout@v4
-        with:
-          repository: contract-version/Wasmward-backend
-          path: wasmward
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.30.1
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Build Wasmward
-        working-directory: wasmward
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm build
-
+      # The Wasmward action builds Wasmward and runs `wasmward check`. This is the whole job.
       - name: Check the fixture (at least 3 days of life left)
-        run: node wasmward/dist/cli.js check --config fixture.wasmward.json --min-ttl-days 3
+        uses: contract-version/Wasmward-backend@main
+        with:
+          config: fixture.wasmward.json
+          min-ttl-days: '3'
 
       - name: What to do
         if: failure()
