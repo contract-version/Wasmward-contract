@@ -44,6 +44,16 @@ pnpm test:integration
 
 The integration test upgrades the contract to v2, checks that Wasmward blocks writes, then upgrades it back to v1 so it can be run again. Set `WASMWARD_FIXTURE_DIR` if this repository is somewhere else.
 
+## Keeping it alive
+
+Testnet contracts expire after about a week, and an expired fixture breaks anything that points at it (the Wasmward README example, the browser demo, the integration tests). `wasmward check` shows how long the instance has left. To extend it, and the Wasm code of both builds:
+
+```bash
+bash scripts/extend.sh            # about 29 days; pass a number of ledgers to change it
+```
+
+It needs `testnet.json` and the identity that `scripts/deploy.sh` created.
+
 ## Tests
 
 ```bash
