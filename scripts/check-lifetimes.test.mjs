@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-import { codeKeyXdr, daysFor, judge } from './check-lifetimes.mjs';
+import { codeKeyXdr, daysFor, judge, parseArgs } from './check-lifetimes.mjs';
 
 const HASH = 'a7a82511fa284650178b02fe3a4bafc587b95212f2f8ce647f2df5ef4cf42509';
 
@@ -117,4 +117,30 @@ test('--json prints one report and the exit code agrees with it, against a local
     await new Promise((resolve) => server.close(resolve));
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('parseArgs applies the defaults', () => {
+  assert.deepEqual(parseArgs([]), { config: 'fixture.wasmward.json', minDays: 3, json: false });
+});
+
+test('parseArgs reads each option', () => {
+  assert.deepEqual(parseArgs(['--config', 'x.json', '--min-days', '0.5', '--json']), {
+    config: 'x.json',
+    minDays: 0.5,
+    json: true,
+  });
+});
+
+test('parseArgs says which option has no value, instead of guessing', () => {
+  assert.throws(() => parseArgs(['--config']), /--config needs a value/);
+  assert.throws(() => parseArgs(['--min-days']), /--min-days needs a value/);
+  // The next word is another option, not a value.
+  assert.throws(() => parseArgs(['--config', '--json']), /--config needs a value/);
+});
+
+test('parseArgs refuses a minimum that is not a number of days', () => {
+  for (const bad of ['abc', '-1', 'Infinity', '']) {
+    assert.throws(() => parseArgs(['--min-days', bad]), /--min-days/, bad);
+  }
+  assert.equal(parseArgs(['--min-days', '0']).minDays, 0);
 });
