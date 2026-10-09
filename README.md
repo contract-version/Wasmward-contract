@@ -56,6 +56,17 @@ It needs `testnet.json` and the identity that `scripts/deploy.sh` created.
 
 A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml), runs [Wasmward](https://github.com/contract-version/Wasmward-backend) against the live fixture using [`fixture.wasmward.json`](fixture.wasmward.json) and `check --min-ttl-days 3`. It then runs [`scripts/check-lifetimes.mjs`](scripts/check-lifetimes.mjs), which reads the Wasm code entry of every build in that file, including v2, the build the upgrade tests move to and that Wasmward cannot see while it is not live (`node scripts/check-lifetimes.mjs --min-days 3` does the same by hand; it needs only Node 18 or newer; add `--json` for one machine-readable report, with the same exit codes: 0 fine, 1 a build is missing or too close to expiring, 2 the config or RPC could not be used). A red run means the fixture is missing, unsupported, unreachable or has under three days left: run `scripts/extend.sh`, or `scripts/deploy.sh` if it has gone. After a redeploy, run `node scripts/sync-config.mjs` to rewrite `fixture.wasmward.json` from the new `testnet.json` (`--check` only reports whether it is stale), then update the contract ID and hashes that the Wasmward repositories also keep (`src/main.js` and `wasmward.json` in the frontend; the example in the backend README and the recorded testnet responses in its `test/fixtures/recorded`).
 
+## Scripts
+
+| Script | What it does | Needs |
+|---|---|---|
+| `scripts/deploy.sh` | Builds v1 and v2, uploads both, checks the on-chain hashes against the local ones, deploys v1, writes `testnet.json`. | Stellar CLI, a funded testnet identity (it creates one) |
+| `scripts/extend.sh [--dry-run] [ledgers]` | Extends the lifetime of the instance and of both Wasm code entries. `--dry-run` prints the three commands and runs none. | `testnet.json`; for a real run, the Stellar CLI and the identity |
+| `scripts/check-lifetimes.mjs` | Reads the lifetime of the instance and of every supported build's Wasm code straight from the RPC, with `--min-days`, `--json`, `--rpc-url`, `--timeout-ms`. | Node 18+ |
+| `scripts/sync-config.mjs [--check]` | Rewrites `fixture.wasmward.json` from `testnet.json` after a redeploy. | Node 18+ |
+
+`scripts/strkey.mjs` and `scripts/ledger-keys.mjs` are what `check-lifetimes.mjs` is built on (a contract address decoder and the two ledger keys); they have no command line. Every script has tests next to it (`node --test scripts/*.test.mjs`), and the ones that would spend money or touch the network are tested against stand-ins.
+
 ## CI
 
 [`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request: `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for both the v1 and v2 builds, then builds both Wasm variants and fails if their hashes are equal. A second job tests the lifetime script (`node --test scripts/check-lifetimes.test.mjs`) offline.
