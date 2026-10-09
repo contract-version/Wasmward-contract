@@ -93,7 +93,7 @@ export function parseEnvMeta(body) {
 
 /**
  * Reads a Wasm module. Returns
- *   { size, sha256, sections: [{ id, name?, size }], meta: [{ key, value }], interface?: { protocol, preRelease } }
+ *   { size, sha256, sections: [{ id, name?, size, digest }], meta: [{ key, value }], interface?: { protocol, preRelease } }
  * `meta` joins every contractmetav0 section, in file order. Throws an Error that says what is wrong if the
  * bytes are not a Wasm module or are cut off.
  */
@@ -110,7 +110,9 @@ export function readWasm(input) {
     const [size, bodyStart] = leb128(bytes, at, `the size of section ${id}`);
     const end = bodyStart + size;
     if (end > bytes.length) throw new Error(`section ${id} says it is ${size} bytes but only ${bytes.length - bodyStart} remain`);
-    const section = { id, size };
+    // The digest is of the section's whole body, so two modules can be compared section by section even when
+    // the sizes match.
+    const section = { id, size, digest: createHash('sha256').update(bytes.subarray(bodyStart, end)).digest('hex') };
     let body = bytes.subarray(bodyStart, end);
     if (id === 0) {
       const [nameLength, nameStart] = leb128(bytes, bodyStart, 'the name of a custom section');
