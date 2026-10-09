@@ -13,7 +13,14 @@ set +x
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-LEDGERS="${1:-500000}"
+LEDGERS="${1-500000}" # no colon: an empty argument is a mistake to report, not a reason to use the default
+# Refuse anything but a positive whole number before any money is spent on a transaction that cannot work.
+case "$LEDGERS" in
+  '' | *[!0-9]* | 0*)
+    echo "error: the number of ledgers must be a whole number greater than 0, not '$LEDGERS'" >&2
+    exit 1
+    ;;
+esac
 IDENTITY="wasmward-fixture"
 CFG=(--config-dir "$ROOT/.stellar-keys")
 
