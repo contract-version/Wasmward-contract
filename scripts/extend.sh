@@ -3,7 +3,7 @@
 # of both builds. Testnet contracts expire after about a week, and an expired fixture breaks anything that
 # points at it (the Wasmward README example, the browser demo and the integration tests).
 #
-# Usage: bash scripts/extend.sh [ledgers]      (default 500000, about 29 days; the network caps it)
+# Usage: bash scripts/extend.sh [ledgers]      (default 500000, about 29 days; the network caps it; --help for more)
 #
 # Needs testnet.json and the identity that scripts/deploy.sh created in .stellar-keys. Nothing here prints
 # a secret.
@@ -13,7 +13,46 @@ set +x
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-LEDGERS="${1-500000}" # no colon: an empty argument is a mistake to report, not a reason to use the default
+usage() {
+  cat >&2 <<'USAGE'
+Usage: bash scripts/extend.sh [ledgers]
+
+Extends the lifetime of the testnet fixture: the contract instance and the Wasm code of both builds.
+
+  ledgers   how far to extend, as a whole number of ledgers (about 5 seconds each).
+            Default 500000, about 29 days; the network caps it.
+
+  -h, --help   show this text
+
+Needs testnet.json and the identity that scripts/deploy.sh created in .stellar-keys.
+USAGE
+}
+
+LEDGERS=500000
+SEEN_LEDGERS=0
+for arg in "$@"; do
+  case "$arg" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --*)
+      echo "error: unknown option $arg" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      if [ "$SEEN_LEDGERS" = 1 ]; then
+        echo "error: expected one number of ledgers, got more" >&2
+        usage
+        exit 1
+      fi
+      # Taken as it is, even when empty: a mistake to report below, not a reason to use the default.
+      LEDGERS="$arg"
+      SEEN_LEDGERS=1
+      ;;
+  esac
+done
 # Refuse anything but a positive whole number before any money is spent on a transaction that cannot work.
 case "$LEDGERS" in
   '' | *[!0-9]* | 0*)
