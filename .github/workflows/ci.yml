@@ -56,5 +56,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # deploy.sh and extend.sh only run against the real network, so CI never executes them; at least make
+      # sure they still parse.
+      - name: Check the scripts parse
+        run: |
+          for script in scripts/*.sh; do bash -n "$script"; done
+          node --check scripts/check-lifetimes.mjs
       - name: Test the lifetime check
         run: node --test scripts/check-lifetimes.test.mjs
