@@ -144,3 +144,43 @@ test('parseArgs refuses a minimum that is not a number of days', () => {
   }
   assert.equal(parseArgs(['--min-days', '0']).minDays, 0);
 });
+
+test('parseArgs accepts an RPC URL and refuses things that are not one', () => {
+  assert.equal(parseArgs(['--rpc-url', 'https://rpc.example.org/x']).rpcUrl, 'https://rpc.example.org/x');
+  assert.equal(parseArgs([]).rpcUrl, undefined);
+  assert.throws(() => parseArgs(['--rpc-url', 'not a url']), /not a URL/);
+  assert.throws(() => parseArgs(['--rpc-url', 'file:///etc/passwd']), /https:\/\/ or http:\/\//);
+  assert.throws(() => parseArgs(['--rpc-url']), /--rpc-url needs a value/);
+});
+
+test('--rpc-url overrides the one in the config', async () => {
+  const { createServer } = await import('node:http');
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { execFile } = await import('node:child_process');
+  const server = createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { entries: [{ liveUntilLedgerSeq: 1_000 + 17_280 * 9 }], latestLedger: 1_000 } }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const dir = mkdtempSync(join(tmpdir(), 'lifetimes-url-'));
+  try {
+    const file = join(dir, 'config.json');
+    // The config points at a port nothing listens on; only the flag can make this succeed.
+    writeFileSync(file, JSON.stringify({ network: { rpcUrl: 'http://127.0.0.1:9' }, contracts: { v: { supported: [{ wasmHash: HASH, label: 'v1' }] } } }));
+    const url = `http://127.0.0.1:${server.address().port}`;
+    const out = await new Promise((resolve) =>
+      execFile(process.execPath, ['scripts/check-lifetimes.mjs', '--config', file, '--rpc-url', url, '--json'], (error, stdout) => resolve({ status: error ? error.code : 0, stdout })),
+    );
+    assert.equal(out.status, 0);
+    assert.equal(JSON.parse(out.stdout).builds[0].daysLeft, 9);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
