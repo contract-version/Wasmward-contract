@@ -5,6 +5,10 @@ members = ["contracts/*"]
 [workspace.dependencies]
 soroban-sdk = "=26.1.1"
 
+# A test contract has no reason to use unsafe code, and denying it keeps it that way (not forbid: the Soroban macros allow it themselves in test builds).
+[workspace.lints.rust]
+unsafe_code = "deny"
+
 [profile.release]
 opt-level = "z"
 overflow-checks = true
