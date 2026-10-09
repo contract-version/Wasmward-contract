@@ -52,6 +52,17 @@ jobs:
             echo "v1 and v2 have the same hash; the v2 feature had no effect" >&2
             exit 1
           fi
+          sha256sum v1.wasm v2.wasm > hashes.txt
+          {
+            echo "### Wasm hashes of this CI build"
+            echo
+            echo "| build | sha256 |"
+            echo "|---|---|"
+            echo "| v1 | \`$v1\` |"
+            echo "| v2 | \`$v2\` |"
+            echo
+            echo "These are the hashes CI produced. They will not match the deployed fixture's (see \`fixture.wasmward.json\`): the same source gives a different Wasm under the Stellar CLI, a plain cargo build and CI, so the hash that counts is the one of the artifact that was uploaded."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # The lifetime check script has no dependencies and talks to the network only when run for real, so its
   # logic (the ledger key, the day arithmetic, what counts as expired) is tested offline here.
