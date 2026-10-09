@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { codeKeyXdr, daysFor, judge } from './check-lifetimes.mjs';
 
@@ -46,4 +47,74 @@ test('an expired, missing or undated code entry is never fine', () => {
 
 test('a code entry live until exactly the latest ledger has not expired yet', () => {
   assert.equal(judge('v', HASH, { latestLedger: 100, entries: [{ liveUntilLedgerSeq: 100 }] }, 0).ok, true);
+});
+
+test('the verdict carries the ledgers left when they are known', () => {
+  assert.equal(judge('v', HASH, { latestLedger: 100, entries: [{ liveUntilLedgerSeq: 350 }] }, 0).ledgersLeft, 250);
+  assert.equal(judge('v', HASH, { latestLedger: 100, entries: [{ liveUntilLedgerSeq: 90 }] }, 0).ledgersLeft, -10);
+  assert.equal(judge('v', HASH, { latestLedger: 100, entries: [] }, 0).ledgersLeft, undefined);
+});
+
+test('--json with a bad option still fails with exit code 2 and no JSON on stdout', () => {
+  const run = spawnSync(process.execPath, ['scripts/check-lifetimes.mjs', '--json', '--bogus'], { encoding: 'utf8' });
+  assert.equal(run.status, 2);
+  assert.equal(run.stdout, '');
+  assert.match(run.stderr, /unknown option --bogus/);
+});
+
+test('--json prints one report and the exit code agrees with it, against a local RPC', async () => {
+  const { createServer } = await import('node:http');
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const live = HASH;
+  const gone = 'ec040ead4e157695a16a9723a5d95a44268f1b8da4c5f6aee7bf4f218dbdc875';
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      const key = JSON.parse(body).params.keys[0];
+      const hash = Buffer.from(key, 'base64').subarray(4).toString('hex');
+      const entries = hash === live ? [{ liveUntilLedgerSeq: 1_000 + 17_280 * 10 }] : [];
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { entries, latestLedger: 1_000 } }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const dir = mkdtempSync(join(tmpdir(), 'lifetimes-'));
+  try {
+    const file = join(dir, 'config.json');
+    const config = (hashes) => ({
+      network: { rpcUrl: `http://127.0.0.1:${server.address().port}` },
+      contracts: { vault: { supported: hashes.map((wasmHash, i) => ({ wasmHash, label: `v${i + 1}` })) } },
+    });
+    const run = (args) =>
+      new Promise((resolve) => {
+        import('node:child_process').then(({ execFile }) =>
+          execFile(process.execPath, ['scripts/check-lifetimes.mjs', '--config', file, '--json', ...args], (error, stdout) =>
+            resolve({ status: error ? error.code : 0, stdout }),
+          ),
+        );
+      });
+
+    writeFileSync(file, JSON.stringify(config([live])));
+    const good = await run(['--min-days', '3']);
+    assert.equal(good.status, 0);
+    const goodReport = JSON.parse(good.stdout);
+    assert.equal(goodReport.ok, true);
+    assert.equal(goodReport.minDays, 3);
+    assert.deepEqual(goodReport.builds.map((b) => [b.label, b.ok, b.daysLeft]), [['v1', true, 10]]);
+
+    writeFileSync(file, JSON.stringify(config([live, gone])));
+    const bad = await run([]);
+    assert.equal(bad.status, 1);
+    const badReport = JSON.parse(bad.stdout);
+    assert.equal(badReport.ok, false);
+    assert.deepEqual(badReport.builds.map((b) => [b.label, b.ok]), [['v1', true], ['v2', false]]);
+    assert.equal(badReport.builds[1].daysLeft, undefined);
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
