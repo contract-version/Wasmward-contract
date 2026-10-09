@@ -16,7 +16,7 @@
 // Exit codes: for one target, 0 shown. For two, like diff: 0 the same Wasm, 1 different. Always 2 when a
 // target could not be read or is not what it should be. No dependencies; needs Node 18 or newer. Only a
 // deployed: target talks to the network, and then only to read.
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { codeKeyXdr } from './ledger-keys.mjs';
@@ -66,11 +66,15 @@ export function parseArgs(argv) {
     else if (word === '--config') options.config = valueAfter(argv, i++, word);
     else if (word === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(argv, i++, word));
     else if (word === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(argv, i++, word));
+    else if (word === '--out') options.out = valueAfter(argv, i++, word);
     else if (word.startsWith('--')) throw new Error(`unknown option ${word}`);
     else options.targets.push(parseTarget(word));
   }
   if (options.targets.length === 0) throw new Error('give the Wasm to look at: a file, or deployed:<wasm hash>');
   if (options.targets.length > 2) throw new Error('give one target to look at, or two to compare');
+  if (options.out !== undefined && !(options.targets.length === 1 && options.targets[0].kind === 'deployed')) {
+    throw new Error('--out saves one deployed Wasm: give deployed:<wasm hash> and no other target');
+  }
   return options;
 }
 
@@ -100,7 +104,10 @@ export function rpcUrlFor(options, readConfig = (path) => readFileSync(path, 'ut
  * refused unless the code that comes back really has that hash. Throws an Error that says what went wrong.
  */
 export async function load(target, options) {
-  if (target.kind === 'file') return { name: target.path, info: readWasm(readFileSync(target.path)) };
+  if (target.kind === 'file') {
+    const bytes = readFileSync(target.path);
+    return { name: target.path, info: readWasm(bytes), bytes };
+  }
 
   const result = await rpcLookup(rpcUrlFor(options), codeKeyXdr(target.hash), { timeoutMs: options.timeoutMs });
   const entry = Array.isArray(result.entries) ? result.entries[0] : undefined;
@@ -109,7 +116,7 @@ export async function load(target, options) {
   if (parsed.hash !== target.hash || !parsed.hashMatches) {
     throw new Error(`the RPC returned code that does not have hash ${target.hash}, so it is not shown`);
   }
-  return { name: `deployed:${target.hash.slice(0, 8)}...`, info: readWasm(parsed.code) };
+  return { name: `deployed:${target.hash.slice(0, 8)}...`, info: readWasm(parsed.code), bytes: parsed.code };
 }
 
 async function main(argv) {
@@ -128,6 +135,16 @@ async function main(argv) {
       console.error(`error: ${target.kind === 'file' ? `${target.path}: ` : ''}${error.message}`);
       return 2;
     }
+  }
+  if (options.out !== undefined) {
+    try {
+      // 'wx': never replace a file that is already there.
+      writeFileSync(options.out, loaded[0].bytes, { flag: 'wx' });
+    } catch (error) {
+      console.error(`error: ${options.out}: ${error.code === 'EEXIST' ? 'already exists, not overwriting it' : error.message}`);
+      return 2;
+    }
+    console.error(`Saved ${loaded[0].bytes.length} bytes to ${options.out} (sha256 ${loaded[0].info.sha256}).`);
   }
   if (loaded.length === 1) {
     const [one] = loaded;
