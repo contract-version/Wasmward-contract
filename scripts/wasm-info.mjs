@@ -10,7 +10,8 @@
 // [--timeout-ms N]. The bytes that come back are checked: their SHA-256 must be the hash that was asked for.
 //
 // With one target it describes it. With two it compares them and says how they differ, which answers
-// "why does my build have a different hash from the deployed one?".
+// "why does my build have a different hash from the deployed one?". Add --json for one JSON object instead
+// of text: the module as data for one target, { same, a, b, differences, explanation } for two.
 //
 // Exit codes: for one target, 0 shown. For two, like diff: 0 the same Wasm, 1 different. Always 2 when a
 // target could not be read or is not what it should be. No dependencies; needs Node 18 or newer. Only a
@@ -21,7 +22,7 @@ import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { codeKeyXdr } from './ledger-keys.mjs';
 import { rpcLookup } from './rpc.mjs';
 import { parseCodeEntry } from './wasm-code.mjs';
-import { compareReport } from './wasm-compare.mjs';
+import { compareReport, diff, explain } from './wasm-compare.mjs';
 import { metaValue, readWasm, sectionLabel } from './wasm-sections.mjs';
 
 export { sectionLabel };
@@ -40,14 +41,29 @@ export function describe(name, info) {
   return lines;
 }
 
+/** One module as plain data, for --json. Anything not recorded in the module is null. */
+export function toJson(name, info) {
+  return {
+    name,
+    size: info.size,
+    sha256: info.sha256,
+    compiler: metaValue(info, 'rsver') ?? null,
+    sdk: metaValue(info, 'rssdkver') ?? null,
+    cli: metaValue(info, 'cliver') ?? null,
+    interfaceProtocol: info.interface?.protocol ?? null,
+    sections: info.sections.map((s) => ({ section: sectionLabel(s), size: s.size, digest: s.digest })),
+  };
+}
+
 const HASH = /^[0-9a-f]{64}$/;
 
 /** Reads the command line. Throws an Error whose message says what is wrong. */
 export function parseArgs(argv) {
-  const options = { targets: [], config: 'fixture.wasmward.json', timeoutMs: 15_000 };
+  const options = { targets: [], config: 'fixture.wasmward.json', timeoutMs: 15_000, json: false };
   for (let i = 0; i < argv.length; i += 1) {
     const word = argv[i];
-    if (word === '--config') options.config = valueAfter(argv, i++, word);
+    if (word === '--json') options.json = true;
+    else if (word === '--config') options.config = valueAfter(argv, i++, word);
     else if (word === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(argv, i++, word));
     else if (word === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(argv, i++, word));
     else if (word.startsWith('--')) throw new Error(`unknown option ${word}`);
@@ -114,12 +130,20 @@ async function main(argv) {
     }
   }
   if (loaded.length === 1) {
-    console.log(describe(loaded[0].name, loaded[0].info).join('\n'));
+    const [one] = loaded;
+    console.log(options.json ? JSON.stringify(toJson(one.name, one.info)) : describe(one.name, one.info).join('\n'));
     return 0;
   }
   const [a, b] = loaded;
-  console.log(compareReport(a.name, b.name, a.info, b.info).join('\n'));
-  return a.info.sha256 === b.info.sha256 ? 0 : 1;
+  const d = diff(a.info, b.info);
+  if (options.json) {
+    const report = { same: d.sameHash, a: toJson(a.name, a.info), b: toJson(b.name, b.info), differences: d, explanation: explain(d) };
+    // A value that is missing on one side is null, not left out: JSON.stringify would drop an undefined one.
+    console.log(JSON.stringify(report, (key, value) => (value === undefined ? null : value)));
+  } else {
+    console.log(compareReport(a.name, b.name, a.info, b.info).join('\n'));
+  }
+  return d.sameHash ? 0 : 1;
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
