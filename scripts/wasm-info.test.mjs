@@ -60,7 +60,9 @@ test('parseArgs wants one target, or two to compare, and knows only its own opti
     targets: [{ kind: 'file', path: 'a.wasm' }],
     config: 'fixture.wasmward.json',
     timeoutMs: 15_000,
+    json: false,
   });
+  assert.equal(parseArgs(['--json', 'a.wasm']).json, true);
   assert.throws(() => parseArgs([]), /give the Wasm to look at/);
   assert.deepEqual(parseArgs(['a.wasm', 'b.wasm']).targets.map((t) => t.path), ['a.wasm', 'b.wasm']);
   assert.throws(() => parseArgs(['a', 'b', 'c']), /give one target to look at, or two to compare/);
@@ -263,4 +265,49 @@ test('a local build that is not the deployed one is reported as different, with 
   } finally {
     await rpc.close();
   }
+});
+
+test('--json for one target is the module as data, with null for what is not recorded', async () => {
+  const bare = Buffer.from('0061736d01000000', 'hex');
+  const real = await run(['--json', 'v1.wasm'], { 'v1.wasm': deployed('v1') });
+  assert.equal(real.status, 0, real.stderr);
+  const info = JSON.parse(real.stdout);
+  assert.deepEqual(Object.keys(info), ['name', 'size', 'sha256', 'compiler', 'sdk', 'cli', 'interfaceProtocol', 'sections']);
+  assert.equal(info.name, 'v1.wasm');
+  assert.equal(info.sha256, HASH);
+  assert.match(info.cli, /^\d+\.\d+\.\d+#/);
+  assert.equal(info.interfaceProtocol, 26);
+  assert.deepEqual(info.sections.find((s) => s.section === 'code'), { section: 'code', size: 352, digest: info.sections.find((s) => s.section === 'code').digest });
+  assert.match(info.sections[0].digest, /^[0-9a-f]{64}$/);
+
+  const empty = JSON.parse((await run(['--json', 'bare.wasm'], { 'bare.wasm': bare })).stdout);
+  assert.deepEqual([empty.compiler, empty.sdk, empty.cli, empty.interfaceProtocol, empty.sections], [null, null, null, null, []]);
+});
+
+test('--json for two targets has the verdict, both modules, the differences and the explanation', async () => {
+  const result = await run(['--json', 'v1.wasm', 'v2.wasm'], { 'v1.wasm': deployed('v1'), 'v2.wasm': deployed('v2') });
+  assert.equal(result.status, 1, 'the exit code still says they differ');
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.same, false);
+  assert.equal(report.a.name, 'v1.wasm');
+  assert.equal(report.b.name, 'v2.wasm');
+  assert.deepEqual(report.differences.sections.differ, [{ label: 'code', a: [352], b: [352], sameSizes: true }]);
+  assert.deepEqual(report.explanation, ['The recorded tools are the same but the code differs, so the source (or an unrecorded build setting) is different.']);
+  const same = JSON.parse((await run(['--json', 'a.wasm', 'b.wasm'], { 'a.wasm': deployed('v1'), 'b.wasm': deployed('v1') })).stdout);
+  assert.equal(same.same, true);
+});
+
+test('--json keeps a value that is missing on one side as null, not left out', async () => {
+  const plain = Buffer.from('0061736d01000000', 'hex');
+  const result = await run(['--json', 'plain.wasm', 'v1.wasm'], { 'plain.wasm': plain, 'v1.wasm': deployed('v1') });
+  const cli = JSON.parse(result.stdout).differences.toolchain.find((t) => t.what === 'cli');
+  assert.ok('a' in cli, 'the missing side was left out');
+  assert.deepEqual([cli.a, typeof cli.b], [null, 'string']);
+});
+
+test('--json errors still go to stderr with exit 2 and leave stdout empty', async () => {
+  const result = await run(['--json', 'missing.wasm']);
+  assert.equal(result.status, 2);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /^error: missing\.wasm: ENOENT/);
 });
