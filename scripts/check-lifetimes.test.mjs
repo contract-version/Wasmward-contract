@@ -298,3 +298,86 @@ test('--timeout-ms is what the script waits for, end to end', async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+/**
+ * Runs the script against a local RPC that answers per kind of key: `instance` and `code` are the number of
+ * days left for that kind of entry, or null for no entry at all. Returns { status, stdout, stderr }.
+ */
+async function runAgainst({ instance, code, args = [], contractId = 'CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPV' }) {
+  const { createServer } = await import('node:http');
+  const { execFile } = await import('node:child_process');
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const entryFor = (days) => (days === null ? [] : [{ liveUntilLedgerSeq: 1_000 + Math.round(days * 17_280) }]);
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      const keyType = Buffer.from(JSON.parse(body).params.keys[0], 'base64').readUInt32BE(0);
+      const entries = entryFor(keyType === 6 ? instance : code);
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { entries, latestLedger: 1_000 } }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const dir = mkdtempSync(join(tmpdir(), 'lifetimes-instance-'));
+  try {
+    const file = join(dir, 'config.json');
+    const vault = { supported: [{ wasmHash: HASH, label: 'v1' }] };
+    if (contractId !== null) vault.contractId = contractId;
+    writeFileSync(file, JSON.stringify({ network: { rpcUrl: `http://127.0.0.1:${server.address().port}` }, contracts: { vault } }));
+    return await new Promise((resolve) =>
+      execFile(process.execPath, ['scripts/check-lifetimes.mjs', '--config', file, ...args], (error, stdout, stderr) =>
+        resolve({ status: error ? error.code : 0, stdout, stderr }),
+      ),
+    );
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('checks the instance as well as the code, instance first', async () => {
+  const run = await runAgainst({ instance: 20, code: 10 });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.stdout.trim().split('\n').map((line) => line.replace(/\s+/g, ' ')), [
+    'vault CBR5ZFDI... contract instance lives about 20 more days',
+    'v1 a7a82511... Wasm code lives about 10 more days',
+  ]);
+});
+
+test('a live build does not hide an instance that is about to expire', async () => {
+  const run = await runAgainst({ instance: 1, code: 20, args: ['--min-days', '3'] });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /contract instance lives about 1 more days: under the 3-day minimum/);
+  assert.match(run.stdout, /Wasm code lives about 20 more days\n/);
+});
+
+test('a missing instance fails the check even when the code is fine', async () => {
+  const run = await runAgainst({ instance: null, code: 20 });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /contract instance not found \(expired and archived, or never deployed\)/);
+});
+
+test('contracts without an address are not looked up as instances', async () => {
+  // The fake RPC would say "no instance" for any instance key, so a lookup would fail the run.
+  const run = await runAgainst({ instance: null, code: 20, contractId: null });
+  assert.equal(run.status, 0);
+  assert.doesNotMatch(run.stdout, /instance/);
+});
+
+test('the JSON report lists contracts and builds separately', async () => {
+  const run = await runAgainst({ instance: 7, code: 30, args: ['--json'] });
+  const report = JSON.parse(run.stdout);
+  assert.deepEqual(report.contracts.map((c) => [c.name, c.ok, c.daysLeft]), [['vault', true, 7]]);
+  assert.deepEqual(report.builds.map((b) => [b.label, b.ok, b.daysLeft]), [['v1', true, 30]]);
+  assert.equal(report.contracts[0].contractId, 'CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPV');
+});
+
+test('a mistyped contract address is a usage error (exit 2), not a lookup of something else', async () => {
+  const run = await runAgainst({ instance: 7, code: 30, contractId: 'CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPA' });
+  assert.equal(run.status, 2);
+  assert.match(run.stderr, /checksum does not match/);
+});
