@@ -64,6 +64,13 @@ jobs:
             echo "These are the hashes CI produced. They will not match the deployed fixture's (see \`fixture.wasmward.json\`): the same source gives a different Wasm under the Stellar CLI, a plain cargo build and CI, so the hash that counts is the one of the artifact that was uploaded."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The unit tests run the contract as native code. This runs the Wasm that was just built, the way it is
+      # upgraded on testnet: deploy v1, upgrade to v2, check the version changed, go back.
+      - name: Upgrade the built Wasm from v1 to v2 and back
+        run: |
+          FIXTURE_V1_WASM="$PWD/v1.wasm" FIXTURE_V2_WASM="$PWD/v2.wasm" \
+            cargo test --locked --test upgrade -- --ignored
+
       - name: Keep the built Wasm and its hashes
         uses: actions/upload-artifact@v4
         with:
