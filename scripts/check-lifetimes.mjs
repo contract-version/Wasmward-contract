@@ -5,7 +5,10 @@
 // build: the upgrade tests move the fixture from v1 to v2, and if v2's code entry has expired by then the
 // upgrade fails. This reads the code entry of every build listed in the config, using only the RPC.
 //
-//   node scripts/check-lifetimes.mjs [--config fixture.wasmward.json] [--min-days 3]
+//   node scripts/check-lifetimes.mjs [--config fixture.wasmward.json] [--min-days 3] [--json]
+//
+// With --json it prints one JSON object instead of text: { ok, minDays, builds: [{ label, wasmHash, ok,
+// ledgersLeft?, daysLeft?, message }] }, and the exit code means the same.
 //
 // Exit codes: 0 all builds have at least --min-days left, 1 one is missing or too close to expiring,
 // 2 the config or the RPC could not be used. No dependencies; needs Node 18 or newer. Nothing secret is read.
@@ -27,7 +30,7 @@ export function daysFor(ledgers) {
 
 /**
  * Judges one build from an RPC `getLedgerEntries` result for its code key.
- * Returns { ok, text }. A missing entry, or one the RPC gave no lifetime for, is never ok.
+ * Returns { ok, text, ledgersLeft? }. A missing entry, or one the RPC gave no lifetime for, is never ok.
  */
 export function judge(label, wasmHash, result, minDays) {
   const name = `${label} ${wasmHash.slice(0, 8)}...`;
@@ -39,21 +42,23 @@ export function judge(label, wasmHash, result, minDays) {
     return { ok: false, text: `${name}  the RPC did not say when the Wasm code expires, so expiry cannot be ruled out` };
   }
   const left = until - latest;
-  if (left < 0) return { ok: false, text: `${name}  Wasm code has expired` };
+  if (left < 0) return { ok: false, text: `${name}  Wasm code has expired`, ledgersLeft: left };
   const days = daysFor(left);
   const tooClose = left * SECONDS_PER_LEDGER < minDays * 86_400;
   return {
     ok: !tooClose,
+    ledgersLeft: left,
     text: `${name}  Wasm code lives about ${days} more days${tooClose ? `: under the ${minDays}-day minimum` : ''}`,
   };
 }
 
 function parseArgs(argv) {
-  const options = { config: 'fixture.wasmward.json', minDays: 3 };
+  const options = { config: 'fixture.wasmward.json', minDays: 3, json: false };
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     if (flag === '--config') options.config = argv[++i];
     else if (flag === '--min-days') options.minDays = Number(argv[++i]);
+    else if (flag === '--json') options.json = true;
     else throw new Error(`unknown option ${flag}`);
   }
   if (typeof options.config !== 'string' || options.config === '') throw new Error('--config needs a file');
@@ -93,6 +98,7 @@ async function main(argv) {
   }
 
   let failed = false;
+  const report = [];
   for (const build of builds) {
     let verdict;
     try {
@@ -101,9 +107,16 @@ async function main(argv) {
       console.error(`error: ${error.message}`);
       return 2;
     }
-    console.log(verdict.text);
+    if (!options.json) console.log(verdict.text);
     if (!verdict.ok) failed = true;
+    const entry = { label: build.label ?? 'build', wasmHash: build.wasmHash, ok: verdict.ok, message: verdict.text };
+    if (verdict.ledgersLeft !== undefined) {
+      entry.ledgersLeft = verdict.ledgersLeft;
+      entry.daysLeft = daysFor(Math.max(0, verdict.ledgersLeft));
+    }
+    report.push(entry);
   }
+  if (options.json) console.log(JSON.stringify({ ok: !failed, minDays: options.minDays, builds: report }));
   return failed ? 1 : 0;
 }
 
