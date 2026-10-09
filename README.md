@@ -64,12 +64,13 @@ A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml),
 | `scripts/extend.sh [--dry-run] [ledgers]` | Extends the lifetime of the instance and of both Wasm code entries. `--dry-run` prints the three commands and runs none. | `testnet.json`; for a real run, the Stellar CLI and the identity |
 | `scripts/check-lifetimes.mjs` | Reads the lifetime of the instance and of every supported build's Wasm code straight from the RPC, with `--min-days`, `--json`, `--rpc-url`, `--timeout-ms`. | Node 18+ |
 | `scripts/sync-config.mjs [--check]` | Rewrites `fixture.wasmward.json` from `testnet.json` after a redeploy. | Node 18+ |
+| `scripts/wasm-info.mjs <target> [<target>]` | Shows what is inside a Wasm (size, hash, compiler, SDK and Stellar CLI versions, sections), or compares two and says how they differ. A target is a file or `deployed:<hash>`, read from the network and checked against the hash. `--json`, `--out FILE`. Exits 0/1 like `diff` when comparing. | Node 18+; the network only for `deployed:` |
 
-`scripts/strkey.mjs` and `scripts/ledger-keys.mjs` are what `check-lifetimes.mjs` is built on (a contract address decoder and the two ledger keys); they have no command line. Every script has tests next to it (`node --test scripts/*.test.mjs`), and the ones that would spend money or touch the network are tested against stand-ins.
+`scripts/wasm-info.mjs` is how [Why the same source has more than one Wasm hash](docs/HASH-PROVENANCE.md) was measured. The other modules in `scripts/` (`rpc`, `cli-options`, `strkey`, `ledger-keys`, `wasm-code`, `wasm-sections`, `wasm-compare`) are what these scripts are built on; they have no command line. Every script has tests next to it (`node --test scripts/*.test.mjs`), and the ones that would spend money or touch the network are tested against stand-ins.
 
 ## CI
 
-[`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request: `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for both the v1 and v2 builds, then builds both Wasm variants and fails if their hashes are equal. A second job tests the lifetime script (`node --test scripts/check-lifetimes.test.mjs`) offline.
+[`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request: `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for both the v1 and v2 builds, then builds both Wasm variants, fails if their hashes are equal, runs the Wasm upgrade tests on what it built, and keeps the Wasm and its hashes as an artifact. A second job runs the script tests (`node --test scripts/*.test.mjs`) offline on Node 18, 20 and 22.
 
 ## Tests
 
@@ -77,6 +78,18 @@ A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml),
 cargo test                  # v1 build
 cargo test --features v2    # v2 build
 ```
+
+These run the contract as native code. `contracts/fixture/tests/upgrade.rs` runs the **compiled Wasm** instead: it deploys v1, uploads v2, upgrades and goes back, the way the fixture is upgraded on testnet. It needs the two Wasm files, so a plain `cargo test` lists its tests as ignored. To run them:
+
+```bash
+cargo build --release --target wasm32v1-none -p wasmward-fixture
+cp target/wasm32v1-none/release/wasmward_fixture.wasm v1.wasm
+cargo build --release --target wasm32v1-none -p wasmward-fixture --features v2
+cp target/wasm32v1-none/release/wasmward_fixture.wasm v2.wasm
+FIXTURE_V1_WASM=v1.wasm FIXTURE_V2_WASM=v2.wasm cargo test --test upgrade -- --ignored
+```
+
+CI does exactly this on the Wasm it builds.
 
 ## Pinned versions
 
