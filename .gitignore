@@ -4,3 +4,5 @@ testnet.json
 .stellar-keys/
 .DS_Store
 build/
+# Snapshots of the opt-in upgrade tests embed the built Wasm, so they change with every build.
+contracts/fixture/test_snapshots/*.json
