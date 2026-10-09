@@ -7,7 +7,8 @@
 //
 //   node scripts/check-lifetimes.mjs [--config fixture.wasmward.json] [--min-days 3] [--json] [--rpc-url URL]
 //
-// --rpc-url asks that RPC instead of the one in the config.
+// --rpc-url asks that RPC instead of the one in the config. --timeout-ms is how long to wait for one answer
+// (default 15000); a timeout, a 5xx or a 429 is tried once more before giving up.
 //
 // With --json it prints one JSON object instead of text: { ok, minDays, builds: [{ label, wasmHash, ok,
 // ledgersLeft?, daysLeft?, message }] }, and the exit code means the same.
@@ -65,9 +66,16 @@ function parseRpcUrl(text) {
   return text;
 }
 
+/** How long to wait for one answer, in whole milliseconds: from 100 to 120000 (two minutes). */
+function parseTimeout(text) {
+  const ms = Number(text);
+  if (!Number.isInteger(ms) || ms < 100 || ms > 120_000) throw new Error('--timeout-ms must be a whole number from 100 to 120000');
+  return ms;
+}
+
 /** Reads the command line. Throws an Error whose message says what is wrong. */
 export function parseArgs(argv) {
-  const options = { config: 'fixture.wasmward.json', minDays: 3, json: false };
+  const options = { config: 'fixture.wasmward.json', minDays: 3, json: false, timeoutMs: 15_000 };
   // The value of an option is the next word, which must exist and must not be another option.
   const valueAfter = (index, flag) => {
     const value = argv[index + 1];
@@ -80,6 +88,7 @@ export function parseArgs(argv) {
     if (flag === '--config') options.config = valueAfter(i++, flag);
     else if (flag === '--min-days') options.minDays = Number(valueAfter(i++, flag));
     else if (flag === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(i++, flag));
+    else if (flag === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(i++, flag));
     else if (flag === '--json') options.json = true;
     else throw new Error(`unknown option ${flag}`);
   }
@@ -148,7 +157,8 @@ async function main(argv) {
   for (const build of builds) {
     let verdict;
     try {
-      verdict = judge(build.label ?? 'build', build.wasmHash, await rpcLookup(rpcUrl, codeKeyXdr(build.wasmHash)), options.minDays);
+      const result = await rpcLookup(rpcUrl, codeKeyXdr(build.wasmHash), { timeoutMs: options.timeoutMs });
+      verdict = judge(build.label ?? 'build', build.wasmHash, result, options.minDays);
     } catch (error) {
       console.error(`error: ${error.message}`);
       return 2;
