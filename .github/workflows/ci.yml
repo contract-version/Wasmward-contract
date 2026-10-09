@@ -56,13 +56,19 @@ jobs:
   # The lifetime check script has no dependencies and talks to the network only when run for real, so its
   # logic (the ledger key, the day arithmetic, what counts as expired) is tested offline here.
   scripts:
+    name: scripts (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The scripts claim to need only Node 18 or newer, so run them on the oldest and the newest.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
       # deploy.sh and extend.sh only run against the real network, so CI never executes them; at least make
       # sure they still parse.
       - name: Check the scripts parse
