@@ -12,6 +12,32 @@ set +x # Never trace this script: it handles a secret key.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+usage() {
+  cat >&2 <<'USAGE'
+Usage: bash scripts/deploy.sh
+
+Builds the v1 and v2 fixture, uploads both to Stellar testnet, checks that the hashes on chain are the ones
+built, deploys v1 and writes testnet.json. It takes no arguments.
+
+The identity comes from FIXTURE_SECRET (in the environment or in .env); without one, a fresh testnet identity is
+generated and its secret is saved to .env. The secret is never printed or put on a command line.
+
+  -h, --help   show this text
+
+After a deploy, run: node scripts/sync-config.mjs
+USAGE
+}
+
+# This script deploys for real, so a flag it does not understand (--dry-run, a typo) must stop it, not be ignored.
+for arg in "$@"; do
+  case "$arg" in -h | --help) usage; exit 0 ;; esac
+done
+if [ "$#" -gt 0 ]; then
+  echo "error: unknown argument '$1'; this script takes none" >&2
+  usage
+  exit 1
+fi
+
 NETWORK="testnet"
 RPC_URL="${WASMWARD_TESTNET_RPC_URL:-https://soroban-testnet.stellar.org}"
 PASSPHRASE="Test SDF Network ; September 2015"
