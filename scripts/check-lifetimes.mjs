@@ -21,8 +21,9 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { codeKeyXdr, instanceKeyXdr } from './ledger-keys.mjs';
+import { rpcLookup } from './rpc.mjs';
 
-export { codeKeyXdr };
+export { codeKeyXdr, rpcLookup };
 
 const SECONDS_PER_LEDGER = 5;
 
@@ -104,43 +105,6 @@ export function parseArgs(argv) {
   }
   if (!Number.isFinite(options.minDays) || options.minDays < 0) throw new Error('--min-days must be a number of days, 0 or more');
   return options;
-}
-
-/** One attempt. `retryable` on the error says whether trying again could help. */
-async function rpcAttempt(rpcUrl, key, timeoutMs) {
-  let response;
-  try {
-    response = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getLedgerEntries', params: { keys: [key] } }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-  } catch (cause) {
-    // Network failure or timeout: a second try may well work.
-    throw Object.assign(new Error(`could not reach the RPC: ${cause.name === 'TimeoutError' ? `no answer within ${timeoutMs}ms` : cause.message}`), { retryable: true });
-  }
-  if (!response.ok) {
-    throw Object.assign(new Error(`the RPC answered HTTP ${response.status}`), { retryable: response.status >= 500 || response.status === 429 });
-  }
-  const body = await response.json();
-  if (body.error !== undefined) throw new Error(`the RPC returned an error: ${body.error.message ?? JSON.stringify(body.error)}`);
-  return body.result;
-}
-
-/**
- * Asks the RPC for one ledger entry. A busy or briefly unreachable RPC is tried again (default: once more,
- * after half a second); an answer that is wrong is not, because asking again would not change it.
- */
-export async function rpcLookup(rpcUrl, key, { timeoutMs = 15_000, retries = 1, delayMs = 500 } = {}) {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await rpcAttempt(rpcUrl, key, timeoutMs);
-    } catch (error) {
-      if (!error.retryable || attempt >= retries) throw error;
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
 }
 
 async function main(argv) {
