@@ -1,23 +1,26 @@
 #!/usr/bin/env node
-// Checks how long the Wasm code of every supported build of the fixture has left on the network.
+// Checks how long the fixture has left on the network: the instance of each contract that has a contractId
+// in the config, and the Wasm code of every supported build.
 //
 // Wasmward itself checks the instance and the code of the build that is live now. It cannot see the other
 // build: the upgrade tests move the fixture from v1 to v2, and if v2's code entry has expired by then the
-// upgrade fails. This reads the code entry of every build listed in the config, using only the RPC.
+// upgrade fails. This reads the code entry of every build listed in the config, using only the RPC, and the
+// instance too, so it can be used without Wasmward.
 //
 //   node scripts/check-lifetimes.mjs [--config fixture.wasmward.json] [--min-days 3] [--json] [--rpc-url URL]
 //
 // --rpc-url asks that RPC instead of the one in the config. --timeout-ms is how long to wait for one answer
 // (default 15000); a timeout, a 5xx or a 429 is tried once more before giving up.
 //
-// With --json it prints one JSON object instead of text: { ok, minDays, builds: [{ label, wasmHash, ok,
-// ledgersLeft?, daysLeft?, message }] }, and the exit code means the same.
+// With --json it prints one JSON object instead of text: { ok, minDays, contracts: [{ name, contractId, ok,
+// ledgersLeft?, daysLeft?, message }], builds: [{ label, wasmHash, ok, ledgersLeft?, daysLeft?, message }] },
+// and the exit code means the same.
 //
 // Exit codes: 0 all builds have at least --min-days left, 1 one is missing or too close to expiring,
 // 2 the config or the RPC could not be used. No dependencies; needs Node 18 or newer. Nothing secret is read.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { codeKeyXdr } from './ledger-keys.mjs';
+import { codeKeyXdr, instanceKeyXdr } from './ledger-keys.mjs';
 
 export { codeKeyXdr };
 
@@ -160,26 +163,39 @@ async function main(argv) {
   }
 
   let failed = false;
-  const report = [];
-  for (const build of builds) {
-    let verdict;
-    try {
-      const result = await rpcLookup(rpcUrl, codeKeyXdr(build.wasmHash), { timeoutMs: options.timeoutMs });
-      verdict = judge(build.label ?? 'build', build.wasmHash, result, options.minDays);
-    } catch (error) {
-      console.error(`error: ${error.message}`);
-      return 2;
-    }
+  /** Prints a verdict (unless --json) and turns it into a report entry. */
+  const record = (verdict, fields) => {
     if (!options.json) console.log(verdict.text);
     if (!verdict.ok) failed = true;
-    const entry = { label: build.label ?? 'build', wasmHash: build.wasmHash, ok: verdict.ok, message: verdict.text };
+    const entry = { ...fields, ok: verdict.ok, message: verdict.text };
     if (verdict.ledgersLeft !== undefined) {
       entry.ledgersLeft = verdict.ledgersLeft;
       entry.daysLeft = daysFor(Math.max(0, verdict.ledgersLeft));
     }
-    report.push(entry);
+    return entry;
+  };
+
+  // The instance of each contract that has an address, then the Wasm code of every build.
+  const buildReports = [];
+  const contracts = [];
+  const timeoutMs = options.timeoutMs;
+  try {
+    for (const [name, contract] of Object.entries(config?.contracts ?? {})) {
+      if (contract.contractId === undefined) continue;
+      const result = await rpcLookup(rpcUrl, instanceKeyXdr(contract.contractId), { timeoutMs });
+      const verdict = judgeInstance(name, contract.contractId, result, options.minDays);
+      contracts.push(record(verdict, { name, contractId: contract.contractId }));
+    }
+    for (const build of builds) {
+      const result = await rpcLookup(rpcUrl, codeKeyXdr(build.wasmHash), { timeoutMs });
+      const verdict = judge(build.label ?? 'build', build.wasmHash, result, options.minDays);
+      buildReports.push(record(verdict, { label: build.label ?? 'build', wasmHash: build.wasmHash }));
+    }
+  } catch (error) {
+    console.error(`error: ${error.message}`);
+    return 2;
   }
-  if (options.json) console.log(JSON.stringify({ ok: !failed, minDays: options.minDays, builds: report }));
+  if (options.json) console.log(JSON.stringify({ ok: !failed, minDays: options.minDays, contracts, builds: buildReports }));
   return failed ? 1 : 0;
 }
 
