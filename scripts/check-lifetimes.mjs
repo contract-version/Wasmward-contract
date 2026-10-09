@@ -52,16 +52,23 @@ export function judge(label, wasmHash, result, minDays) {
   };
 }
 
-function parseArgs(argv) {
+/** Reads the command line. Throws an Error whose message says what is wrong. */
+export function parseArgs(argv) {
   const options = { config: 'fixture.wasmward.json', minDays: 3, json: false };
+  // The value of an option is the next word, which must exist and must not be another option.
+  const valueAfter = (index, flag) => {
+    const value = argv[index + 1];
+    // An empty value would otherwise read as 0 days and quietly switch the gate off.
+    if (value === undefined || value.trim() === '' || value.startsWith('--')) throw new Error(`${flag} needs a value`);
+    return value;
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
-    if (flag === '--config') options.config = argv[++i];
-    else if (flag === '--min-days') options.minDays = Number(argv[++i]);
+    if (flag === '--config') options.config = valueAfter(i++, flag);
+    else if (flag === '--min-days') options.minDays = Number(valueAfter(i++, flag));
     else if (flag === '--json') options.json = true;
     else throw new Error(`unknown option ${flag}`);
   }
-  if (typeof options.config !== 'string' || options.config === '') throw new Error('--config needs a file');
   if (!Number.isFinite(options.minDays) || options.minDays < 0) throw new Error('--min-days must be a number of days, 0 or more');
   return options;
 }
