@@ -20,6 +20,7 @@
 // 2 the config or the RPC could not be used. No dependencies; needs Node 18 or newer. Nothing secret is read.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { codeKeyXdr, instanceKeyXdr } from './ledger-keys.mjs';
 import { rpcLookup } from './rpc.mjs';
 
@@ -66,40 +67,15 @@ export function judgeInstance(name, contractId, result, minDays) {
   return judgeEntry(`${name} ${contractId.slice(0, 8)}...`, 'contract instance', 'never deployed', result, minDays);
 }
 
-function parseRpcUrl(text) {
-  let url;
-  try {
-    url = new URL(text);
-  } catch {
-    throw new Error(`--rpc-url is not a URL: ${text}`);
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('--rpc-url must start with https:// or http://');
-  return text;
-}
-
-/** How long to wait for one answer, in whole milliseconds: from 100 to 120000 (two minutes). */
-function parseTimeout(text) {
-  const ms = Number(text);
-  if (!Number.isInteger(ms) || ms < 100 || ms > 120_000) throw new Error('--timeout-ms must be a whole number from 100 to 120000');
-  return ms;
-}
-
 /** Reads the command line. Throws an Error whose message says what is wrong. */
 export function parseArgs(argv) {
   const options = { config: 'fixture.wasmward.json', minDays: 3, json: false, timeoutMs: 15_000 };
-  // The value of an option is the next word, which must exist and must not be another option.
-  const valueAfter = (index, flag) => {
-    const value = argv[index + 1];
-    // An empty value would otherwise read as 0 days and quietly switch the gate off.
-    if (value === undefined || value.trim() === '' || value.startsWith('--')) throw new Error(`${flag} needs a value`);
-    return value;
-  };
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
-    if (flag === '--config') options.config = valueAfter(i++, flag);
-    else if (flag === '--min-days') options.minDays = Number(valueAfter(i++, flag));
-    else if (flag === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(i++, flag));
-    else if (flag === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(i++, flag));
+    if (flag === '--config') options.config = valueAfter(argv, i++, flag);
+    else if (flag === '--min-days') options.minDays = Number(valueAfter(argv, i++, flag));
+    else if (flag === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(argv, i++, flag));
+    else if (flag === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(argv, i++, flag));
     else if (flag === '--json') options.json = true;
     else throw new Error(`unknown option ${flag}`);
   }
