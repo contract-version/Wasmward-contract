@@ -46,7 +46,7 @@ The integration test upgrades the contract to v2, checks that Wasmward blocks wr
 
 ## Keeping it alive
 
-Testnet contracts expire after about a week, and an expired fixture breaks anything that points at it (the Wasmward README example, the browser demo, the integration tests). `wasmward check` shows how long the instance has left. To extend it, and the Wasm code of both builds:
+Testnet contracts expire after about a week, and an expired fixture breaks anything that points at it (the Wasmward README example, the browser demo, the integration tests). `wasmward check` shows how long the contract has left: the sooner of its instance and its Wasm code, which expire separately. To extend the instance and the Wasm code of both builds:
 
 ```bash
 bash scripts/extend.sh            # about 29 days; pass a number of ledgers to change it
@@ -54,11 +54,11 @@ bash scripts/extend.sh            # about 29 days; pass a number of ledgers to c
 
 It needs `testnet.json` and the identity that `scripts/deploy.sh` created.
 
-A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml), runs [Wasmward](https://github.com/contract-version/Wasmward-backend) against the live fixture using [`fixture.wasmward.json`](fixture.wasmward.json) and `check --min-ttl-days 3`. A red run means the fixture is missing, unsupported, unreachable or has under three days left: run `scripts/extend.sh`, or `scripts/deploy.sh` if it has gone (then update `fixture.wasmward.json` and the hashes in the Wasmward repositories).
+A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml), runs [Wasmward](https://github.com/contract-version/Wasmward-backend) against the live fixture using [`fixture.wasmward.json`](fixture.wasmward.json) and `check --min-ttl-days 3`. It then runs [`scripts/check-lifetimes.mjs`](scripts/check-lifetimes.mjs), which reads the Wasm code entry of every build in that file, including v2, the build the upgrade tests move to and that Wasmward cannot see while it is not live (`node scripts/check-lifetimes.mjs --min-days 3` does the same by hand; it needs only Node 18 or newer). A red run means the fixture is missing, unsupported, unreachable or has under three days left: run `scripts/extend.sh`, or `scripts/deploy.sh` if it has gone (then update `fixture.wasmward.json` and the hashes in the Wasmward repositories).
 
 ## CI
 
-[`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request: `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for both the v1 and v2 builds, then builds both Wasm variants and fails if their hashes are equal.
+[`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request: `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for both the v1 and v2 builds, then builds both Wasm variants and fails if their hashes are equal. A second job tests the lifetime script (`node --test scripts/check-lifetimes.test.mjs`) offline.
 
 ## Tests
 

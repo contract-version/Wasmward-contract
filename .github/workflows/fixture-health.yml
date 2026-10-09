@@ -3,7 +3,9 @@ name: Fixture health
 # The test contract on Stellar testnet expires after about a week unless it is extended, and an expired
 # fixture breaks the Wasmward README example, the browser demo and the integration tests. This uses Wasmward
 # itself to check, every week, that the fixture still exists, still runs a supported build, and has at least
-# three days left. A red run means: run scripts/extend.sh (or scripts/deploy.sh if it has gone).
+# three days left, and (scripts/check-lifetimes.mjs) that the Wasm code of every supported build, including
+# the v2 build the upgrade tests move to, also has at least three days left. A red run means: run
+# scripts/extend.sh (or scripts/deploy.sh if it has gone).
 on:
   schedule:
     - cron: '17 6 * * 1' # Mondays, 06:17 UTC
@@ -25,9 +27,16 @@ jobs:
           config: fixture.wasmward.json
           min-ttl-days: '3'
 
+      # Wasmward only sees the build that is live. The upgrade tests need v2's code entry to exist as well.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the Wasm code of every supported build (at least 3 days of life left)
+        run: node scripts/check-lifetimes.mjs --config fixture.wasmward.json --min-days 3
+
       - name: What to do
         if: failure()
         run: |
-          echo "The testnet fixture is missing, unsupported, unreachable or about to expire." >&2
+          echo "The testnet fixture (or the Wasm code of one of its builds) is missing, unsupported, unreachable or about to expire." >&2
           echo "Extend it:    bash scripts/extend.sh" >&2
           echo "Or redeploy:  bash scripts/deploy.sh   (then update fixture.wasmward.json and the hashes in the Wasmward repositories)" >&2
