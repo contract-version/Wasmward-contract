@@ -23,3 +23,28 @@ fn upgrade_requires_admin_auth() {
     // No auth is mocked, so the admin's require_auth() must fail before any upgrade happens.
     client.upgrade(&BytesN::from_array(&env, &[0u8; 32]));
 }
+
+#[test]
+#[should_panic]
+fn upgrade_rejects_a_signer_who_is_not_the_admin() {
+    use soroban_sdk::{
+        testutils::{MockAuth, MockAuthInvoke},
+        IntoVal,
+    };
+
+    let (env, client, _admin) = setup();
+    let other = Address::generate(&env);
+    let hash = BytesN::from_array(&env, &[0u8; 32]);
+    // A valid signature from someone else must not satisfy the admin's require_auth().
+    client
+        .mock_auths(&[MockAuth {
+            address: &other,
+            invoke: &MockAuthInvoke {
+                contract: &client.address,
+                fn_name: "upgrade",
+                args: (hash.clone(),).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .upgrade(&hash);
+}
