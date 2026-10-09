@@ -127,3 +127,30 @@ test('refuses environment metadata of the wrong size or kind', () => {
   assert.throws(() => parseEnvMeta(Buffer.alloc(8)), /8 bytes, expected 12/);
   assert.throws(() => parseEnvMeta(Buffer.concat([u32(1), u32(26), u32(0)])), /entry kind \(1\)/);
 });
+
+test('each section carries a digest of its whole body, so same-sized sections can still be told apart', () => {
+  const body = Buffer.from('abcdef');
+  const [one, same, other] = [
+    readWasm(Buffer.concat([HEADER, section(10, body)])),
+    readWasm(Buffer.concat([HEADER, section(10, Buffer.from(body))])),
+    readWasm(Buffer.concat([HEADER, section(10, Buffer.from('abcdeg'))])),
+  ];
+  assert.equal(one.sections[0].digest, createHash('sha256').update(body).digest('hex'));
+  assert.equal(one.sections[0].digest, same.sections[0].digest);
+  assert.equal(one.sections[0].size, other.sections[0].size);
+  assert.notEqual(one.sections[0].digest, other.sections[0].digest);
+});
+
+test('a custom section\'s digest covers its name as well as its content', () => {
+  const info = readWasm(Buffer.concat([HEADER, custom('contractmetav0', metaBody([['k', 'v']]))]));
+  const expected = createHash('sha256').update(Buffer.concat([leb(14), Buffer.from('contractmetav0'), metaBody([['k', 'v']])])).digest('hex');
+  assert.equal(info.sections[0].digest, expected);
+});
+
+test('the real deployed v1 and v2 differ in exactly one section: the code', () => {
+  const [v1, v2] = ['v1', 'v2'].map((label) => readWasm(deployed(label)));
+  assert.equal(v1.sections.length, v2.sections.length);
+  const differing = v1.sections.filter((section, i) => section.digest !== v2.sections[i].digest);
+  assert.deepEqual(differing.map((section) => section.id), [10]);
+  assert.equal(differing[0].size, v2.sections.find((section) => section.id === 10).size, 'same size, different content');
+});
