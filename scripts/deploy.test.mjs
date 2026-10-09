@@ -280,3 +280,56 @@ test('tells the user what to run next', async () => {
     box.cleanup();
   }
 });
+
+/** Runs deploy.sh with these arguments in a fresh sandbox. */
+async function runWithArguments(args) {
+  const box = sandbox();
+  const result = await new Promise((resolve) => {
+    execFile('bash', ['scripts/deploy.sh', ...args], {
+      cwd: box.dir,
+      env: { ...process.env, FIXTURE_SECRET: '', STUB_SECRET: SECRET, STUB_ADMIN: ADMIN, STUB_CONTRACT: CONTRACT, PATH: `${join(box.dir, 'bin')}${delimiter}${process.env.PATH}`, STELLAR_CALLS: join(box.dir, 'calls.log') },
+    }, (error, stdout, stderr) => resolve({ status: error ? error.code : 0, stdout, stderr }));
+  });
+  return { box, result };
+}
+
+test('--help prints the usage and exits 0 without touching anything', async () => {
+  for (const flag of ['--help', '-h']) {
+    const { box, result } = await runWithArguments([flag]);
+    try {
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stderr, /Usage: bash scripts\/deploy\.sh/);
+      assert.deepEqual(box.calls(), [], 'it called the Stellar CLI');
+      assert.equal(box.file('.env'), null, 'it created .env');
+      assert.equal(box.file('testnet.json'), null);
+    } finally {
+      box.cleanup();
+    }
+  }
+});
+
+test('refuses any argument it does not know, instead of ignoring it and deploying', async () => {
+  for (const args of [['--dry-run'], ['--forever'], ['v2'], ['--dry-run', '--help-me'], ['']]) {
+    const { box, result } = await runWithArguments(args);
+    try {
+      assert.equal(result.status, 1, `${JSON.stringify(args)} was accepted`);
+      assert.match(result.stderr, /unknown argument/);
+      assert.match(result.stderr, /Usage:/);
+      assert.deepEqual(box.calls(), [], `${args.join(' ')} reached the Stellar CLI`);
+      assert.equal(box.file('testnet.json'), null);
+    } finally {
+      box.cleanup();
+    }
+  }
+});
+
+test('--help is honoured wherever it is, even after an argument that would be refused', async () => {
+  const { box, result } = await runWithArguments(['--dry-run', '--help']);
+  try {
+    assert.equal(result.status, 0);
+    assert.match(result.stderr, /Usage:/);
+    assert.deepEqual(box.calls(), []);
+  } finally {
+    box.cleanup();
+  }
+});
