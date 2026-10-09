@@ -18,7 +18,7 @@ The two builds have different Wasm hashes, which is what Wasmward detects.
 
 ## Use
 
-Prerequisites: Rust with the `wasm32v1-none` target, the [Stellar CLI](https://developers.stellar.org/docs/tools/cli),.
+Prerequisites: Rust with the `wasm32v1-none` target (`rustup target add wasm32v1-none`), the [Stellar CLI](https://developers.stellar.org/docs/tools/cli), and Node.js 18 or newer for the helper scripts.
 
 ```bash
 cp .env.example .env      # optional: leave FIXTURE_SECRET empty to generate a testnet identity
