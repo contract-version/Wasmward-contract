@@ -17,8 +17,16 @@ async function rpcAttempt(rpcUrl, key, timeoutMs) {
   if (!response.ok) {
     throw Object.assign(new Error(`the RPC answered HTTP ${response.status}`), { retryable: response.status >= 500 || response.status === 429 });
   }
-  const body = await response.json();
-  if (body.error !== undefined) throw new Error(`the RPC returned an error: ${body.error.message ?? JSON.stringify(body.error)}`);
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    // A gateway's error page served with a 200, or a cut-off reply: worth one more try.
+    throw Object.assign(new Error('the RPC answered something that is not JSON'), { retryable: true });
+  }
+  if (body?.error !== undefined) throw new Error(`the RPC returned an error: ${body.error.message ?? JSON.stringify(body.error)}`);
+  // Without this, an empty answer would reach the caller as "no such entry", which says something untrue.
+  if (body?.result === undefined || body.result === null) throw new Error('the RPC answered without a result');
   return body.result;
 }
 
