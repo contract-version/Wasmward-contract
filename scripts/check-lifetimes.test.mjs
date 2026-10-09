@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-import { codeKeyXdr, daysFor, judge, parseArgs } from './check-lifetimes.mjs';
+import { codeKeyXdr, daysFor, judge, parseArgs, rpcLookup } from './check-lifetimes.mjs';
 
 const HASH = 'a7a82511fa284650178b02fe3a4bafc587b95212f2f8ce647f2df5ef4cf42509';
 
@@ -182,5 +182,84 @@ test('--rpc-url overrides the one in the config', async () => {
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** A local RPC that answers each request with the next handler in `script`, and counts requests. */
+async function scriptedRpc(script) {
+  const { createServer } = await import('node:http');
+  const seen = { requests: 0 };
+  const server = createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      const step = script[Math.min(seen.requests, script.length - 1)];
+      seen.requests += 1;
+      step(res);
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return {
+    seen,
+    url: `http://127.0.0.1:${server.address().port}`,
+    close: async () => {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    },
+  };
+}
+
+const ok = (res) => {
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { entries: [], latestLedger: 7 } }));
+};
+const status = (code) => (res) => {
+  res.statusCode = code;
+  res.end('no');
+};
+const KEY = codeKeyXdr(HASH);
+const FAST = { delayMs: 0 };
+
+test('rpcLookup tries again after a server error and returns the second answer', async () => {
+  const rpc = await scriptedRpc([status(503), ok]);
+  try {
+    assert.deepEqual(await rpcLookup(rpc.url, KEY, FAST), { entries: [], latestLedger: 7 });
+    assert.equal(rpc.seen.requests, 2);
+  } finally {
+    await rpc.close();
+  }
+});
+
+test('rpcLookup also tries again after 429, but gives up after the retries are used', async () => {
+  const rpc = await scriptedRpc([status(429)]);
+  try {
+    await assert.rejects(rpcLookup(rpc.url, KEY, { ...FAST, retries: 2 }), /HTTP 429/);
+    assert.equal(rpc.seen.requests, 3);
+  } finally {
+    await rpc.close();
+  }
+});
+
+test('rpcLookup does not retry an answer that asking again cannot fix', async () => {
+  for (const step of [status(400), status(404), (res) => res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { code: -32602, message: 'bad key' } }))]) {
+    const rpc = await scriptedRpc([step, ok]);
+    try {
+      await assert.rejects(rpcLookup(rpc.url, KEY, FAST));
+      assert.equal(rpc.seen.requests, 1);
+    } finally {
+      await rpc.close();
+    }
+  }
+});
+
+test('rpcLookup retries when nothing is listening, then says it could not reach the RPC', async () => {
+  await assert.rejects(rpcLookup('http://127.0.0.1:9', KEY, { ...FAST, retries: 1 }), /could not reach the RPC/);
+});
+
+test('rpcLookup gives up on a server that never answers, and says how long it waited', async () => {
+  const rpc = await scriptedRpc([() => undefined]); // takes the request and never replies
+  try {
+    await assert.rejects(rpcLookup(rpc.url, KEY, { ...FAST, retries: 0, timeoutMs: 150 }), /no answer within 150ms/);
+  } finally {
+    await rpc.close();
   }
 });
