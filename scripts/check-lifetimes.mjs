@@ -17,14 +17,11 @@
 // 2 the config or the RPC could not be used. No dependencies; needs Node 18 or newer. Nothing secret is read.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { codeKeyXdr } from './ledger-keys.mjs';
+
+export { codeKeyXdr };
 
 const SECONDS_PER_LEDGER = 5;
-
-/** The base64 XDR ledger key for the code entry of a Wasm hash: key type CONTRACT_CODE (7), then the 32-byte hash. */
-export function codeKeyXdr(wasmHash) {
-  if (!/^[0-9a-f]{64}$/.test(wasmHash)) throw new Error(`not a 64-character lowercase hex Wasm hash: ${wasmHash}`);
-  return Buffer.concat([Buffer.from([0, 0, 0, 7]), Buffer.from(wasmHash, 'hex')]).toString('base64');
-}
 
 /** Whole days, rounded down, that a number of ledgers lasts at about 5 seconds each. */
 export function daysFor(ledgers) {
