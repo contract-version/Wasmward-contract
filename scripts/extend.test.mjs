@@ -109,3 +109,17 @@ test('fails when the Stellar CLI fails, instead of reporting success', async () 
     box.cleanup();
   }
 });
+
+test('refuses a number of ledgers that is not a positive whole number, before calling anything', async () => {
+  for (const bad of ['abc', '0', '-5', '1.5', '', '007', '1e5', '12 34']) {
+    const box = sandbox();
+    try {
+      const run = await box.run([bad]);
+      assert.equal(run.status, 1, `'${bad}' was accepted`);
+      assert.match(run.stderr, /whole number greater than 0/, bad);
+      assert.deepEqual(box.calls(), [], `'${bad}' reached the CLI`);
+    } finally {
+      box.cleanup();
+    }
+  }
+});
