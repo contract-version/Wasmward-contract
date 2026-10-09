@@ -71,6 +71,22 @@ jobs:
       - name: Check that v1 and v2 differ only in their code
         run: node scripts/check-builds.mjs v1.wasm v2.wasm
 
+      # What differs between them, for whoever reads the run. wasm-info exits 1 for "different", which is
+      # expected here, so only an exit code of 2 (a file it could not read) counts as a failure.
+      - name: Show how v1 and v2 differ
+        run: |
+          status=0
+          node scripts/wasm-info.mjs v1.wasm v2.wasm > comparison.txt || status=$?
+          cat comparison.txt
+          {
+            echo "### How the built v1 and v2 differ"
+            echo
+            echo '```text'
+            cat comparison.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          test "$status" -le 1
+
       # The unit tests run the contract as native code. This runs the Wasm that was just built, the way it is
       # upgraded on testnet: deploy v1, upgrade to v2, check the version changed, go back.
       - name: Upgrade the built Wasm from v1 to v2 and back
