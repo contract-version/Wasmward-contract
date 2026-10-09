@@ -55,14 +55,15 @@ test('says plainly when a module records no versions or was not processed by the
   assert.ok(lines.includes('  sections  '));
 });
 
-test('parseArgs wants exactly one target and knows only its own options', () => {
+test('parseArgs wants one target, or two to compare, and knows only its own options', () => {
   assert.deepEqual(parseArgs(['a.wasm']), {
     targets: [{ kind: 'file', path: 'a.wasm' }],
     config: 'fixture.wasmward.json',
     timeoutMs: 15_000,
   });
   assert.throws(() => parseArgs([]), /give the Wasm to look at/);
-  assert.throws(() => parseArgs(['a.wasm', 'b.wasm']), /give one target/);
+  assert.deepEqual(parseArgs(['a.wasm', 'b.wasm']).targets.map((t) => t.path), ['a.wasm', 'b.wasm']);
+  assert.throws(() => parseArgs(['a', 'b', 'c']), /give one target to look at, or two to compare/);
   assert.throws(() => parseArgs(['--bogus', 'a.wasm']), /unknown option --bogus/);
 });
 
@@ -217,4 +218,49 @@ test('exits 2 with advice when there is no RPC to ask', async () => {
   const result = await run([`deployed:${HASH}`]); // no config in the temp directory, no --rpc-url
   assert.equal(result.status, 2);
   assert.match(result.stderr, /^error: no RPC to ask: give --rpc-url/);
+});
+
+test('two identical files compare as the same Wasm and exit 0', async () => {
+  const result = await run(['a.wasm', 'b.wasm'], { 'a.wasm': deployed('v1'), 'b.wasm': deployed('v1') });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^A {2}a\.wasm\nB {2}b\.wasm\nhash {6}same\n/);
+  assert.match(result.stdout, /The two are the same Wasm/);
+});
+
+test('two different files compare, say how, and exit 1', async () => {
+  const result = await run(['v1.wasm', 'v2.wasm'], { 'v1.wasm': deployed('v1'), 'v2.wasm': deployed('v2') });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /hash {6}different\n/);
+  assert.match(result.stdout, /section {3}code: same size \(352\), different content/);
+  assert.match(result.stdout, /The recorded tools are the same but the code differs/);
+  assert.equal(result.stderr, '');
+});
+
+test('a target that cannot be read makes the whole comparison exit 2, with no report', async () => {
+  const result = await run(['v1.wasm', 'missing.wasm'], { 'v1.wasm': deployed('v1') });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /^error: missing\.wasm: ENOENT/);
+  assert.equal(result.stdout, '');
+});
+
+test('a local file compared with the deployed Wasm of the same hash is the same Wasm', async () => {
+  const rpc = await rpcServing();
+  try {
+    const result = await run(['--rpc-url', rpc.url, 'mine.wasm', `deployed:${HASH}`], { 'mine.wasm': deployed('v1') });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^A {2}mine\.wasm\nB {2}deployed:a7a82511\.\.\.\nhash {6}same/);
+  } finally {
+    await rpc.close();
+  }
+});
+
+test('a local build that is not the deployed one is reported as different, with the reason', async () => {
+  const rpc = await rpcServing();
+  try {
+    const result = await run(['--rpc-url', rpc.url, 'mine.wasm', `deployed:${HASH}`], { 'mine.wasm': deployed('v2') });
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stdout, /section {3}code: same size \(352\), different content/);
+  } finally {
+    await rpc.close();
+  }
 });
