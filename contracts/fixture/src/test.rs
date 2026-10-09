@@ -48,3 +48,12 @@ fn upgrade_rejects_a_signer_who_is_not_the_admin() {
         }])
         .upgrade(&hash);
 }
+
+#[test]
+fn constructor_records_the_admin() {
+    let (env, client, admin) = setup();
+    let stored: Option<Address> = env.as_contract(&client.address, || {
+        env.storage().instance().get(&DataKey::Admin)
+    });
+    assert_eq!(stored, Some(admin));
+}
