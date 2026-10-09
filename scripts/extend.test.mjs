@@ -123,3 +123,42 @@ test('refuses a number of ledgers that is not a positive whole number, before ca
     }
   }
 });
+
+test('--help prints the usage and exits 0 without calling anything', async () => {
+  for (const flag of ['--help', '-h']) {
+    const box = sandbox({ withTestnetJson: false });
+    try {
+      const run = await box.run([flag]);
+      assert.equal(run.status, 0);
+      assert.match(run.stderr, /Usage: bash scripts\/extend\.sh \[ledgers\]/);
+      assert.deepEqual(box.calls(), []);
+    } finally {
+      box.cleanup();
+    }
+  }
+});
+
+test('an unknown option is refused, with the usage', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run(['--forever']);
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /unknown option --forever/);
+    assert.match(run.stderr, /Usage:/);
+    assert.deepEqual(box.calls(), []);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('more than one number of ledgers is refused rather than one of them being picked', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run(['100', '200']);
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /expected one number of ledgers/);
+    assert.deepEqual(box.calls(), []);
+  } finally {
+    box.cleanup();
+  }
+});
