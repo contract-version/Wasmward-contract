@@ -61,6 +61,6 @@ jobs:
       - name: Check the scripts parse
         run: |
           for script in scripts/*.sh; do bash -n "$script"; done
-          node --check scripts/check-lifetimes.mjs
-      - name: Test the lifetime check
-        run: node --test scripts/check-lifetimes.test.mjs
+          for script in scripts/*.mjs; do node --check "$script"; done
+      - name: Test the scripts
+        run: node --test scripts/*.test.mjs
