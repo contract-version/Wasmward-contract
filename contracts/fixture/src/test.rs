@@ -17,7 +17,7 @@ fn version_matches_build_variant() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn upgrade_requires_admin_auth() {
     let (env, client, _admin) = setup();
     // No auth is mocked, so the admin's require_auth() must fail before any upgrade happens.
@@ -25,7 +25,7 @@ fn upgrade_requires_admin_auth() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
 fn upgrade_rejects_a_signer_who_is_not_the_admin() {
     use soroban_sdk::{
         testutils::{MockAuth, MockAuthInvoke},
@@ -56,4 +56,53 @@ fn constructor_records_the_admin() {
         env.storage().instance().get(&DataKey::Admin)
     });
     assert_eq!(stored, Some(admin));
+}
+
+#[test]
+#[should_panic(expected = "Error(Auth, InvalidAction)")]
+fn one_deployments_admin_cannot_upgrade_another() {
+    use soroban_sdk::{
+        testutils::{MockAuth, MockAuthInvoke},
+        IntoVal,
+    };
+
+    let (env, first, first_admin) = setup();
+    let second_admin = Address::generate(&env);
+    let second_id = env.register(Fixture, (&second_admin,));
+    let second = FixtureClient::new(&env, &second_id);
+    assert_ne!(first.address, second.address);
+
+    let hash = BytesN::from_array(&env, &[0u8; 32]);
+    // The first deployment's admin signs, but the call goes to the second deployment, whose admin is someone else.
+    second
+        .mock_auths(&[MockAuth {
+            address: &first_admin,
+            invoke: &MockAuthInvoke {
+                contract: &second.address,
+                fn_name: "upgrade",
+                args: (hash.clone(),).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .upgrade(&hash);
+}
+
+#[test]
+fn each_deployment_keeps_its_own_admin() {
+    let (env, first, first_admin) = setup();
+    let second_admin = Address::generate(&env);
+    let second_id = env.register(Fixture, (&second_admin,));
+
+    let stored = |id: &Address| -> Option<Address> {
+        env.as_contract(id, || env.storage().instance().get(&DataKey::Admin))
+    };
+    assert_eq!(stored(&first.address), Some(first_admin));
+    assert_eq!(stored(&second_id), Some(second_admin));
+}
+
+#[test]
+fn version_needs_no_authorization_and_does_not_change_between_calls() {
+    let (_env, client, _admin) = setup();
+    // No auth is mocked anywhere in this test, so a read that needed one would fail.
+    assert_eq!(client.version(), client.version());
 }
