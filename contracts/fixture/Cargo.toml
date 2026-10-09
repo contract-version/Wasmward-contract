@@ -13,6 +13,9 @@ doctest = false
 # Build the v2 variant. `version()` returns 2 and the Wasm hash changes.
 v2 = []
 
+[lints]
+workspace = true
+
 [dependencies]
 soroban-sdk = { workspace = true }
 
