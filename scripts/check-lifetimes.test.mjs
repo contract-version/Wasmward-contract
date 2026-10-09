@@ -120,7 +120,7 @@ test('--json prints one report and the exit code agrees with it, against a local
 });
 
 test('parseArgs applies the defaults', () => {
-  assert.deepEqual(parseArgs([]), { config: 'fixture.wasmward.json', minDays: 3, json: false });
+  assert.deepEqual(parseArgs([]), { config: 'fixture.wasmward.json', minDays: 3, json: false, timeoutMs: 15_000 });
 });
 
 test('parseArgs reads each option', () => {
@@ -128,6 +128,7 @@ test('parseArgs reads each option', () => {
     config: 'x.json',
     minDays: 0.5,
     json: true,
+    timeoutMs: 15_000,
   });
 });
 
@@ -261,5 +262,39 @@ test('rpcLookup gives up on a server that never answers, and says how long it wa
     await assert.rejects(rpcLookup(rpc.url, KEY, { ...FAST, retries: 0, timeoutMs: 150 }), /no answer within 150ms/);
   } finally {
     await rpc.close();
+  }
+});
+
+test('parseArgs reads --timeout-ms and keeps it within sensible bounds', () => {
+  assert.equal(parseArgs(['--timeout-ms', '2500']).timeoutMs, 2500);
+  for (const bad of ['99', '120001', '1.5', 'abc', '-5']) {
+    assert.throws(() => parseArgs(['--timeout-ms', bad]), /--timeout-ms must be/, bad);
+  }
+  assert.throws(() => parseArgs(['--timeout-ms']), /--timeout-ms needs a value/);
+});
+
+test('--timeout-ms is what the script waits for, end to end', async () => {
+  const { execFile } = await import('node:child_process');
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const rpc = await scriptedRpc([() => undefined]); // never answers
+  const dir = mkdtempSync(join(tmpdir(), 'lifetimes-timeout-'));
+  try {
+    const file = join(dir, 'config.json');
+    writeFileSync(file, JSON.stringify({ network: { rpcUrl: rpc.url }, contracts: { v: { supported: [{ wasmHash: HASH }] } } }));
+    const started = Date.now();
+    const run = await new Promise((resolve) =>
+      execFile(process.execPath, ['scripts/check-lifetimes.mjs', '--config', file, '--timeout-ms', '200'], (error, stdout, stderr) =>
+        resolve({ status: error ? error.code : 0, stderr }),
+      ),
+    );
+    assert.equal(run.status, 2);
+    assert.match(run.stderr, /no answer within 200ms/);
+    // Two tries of 200ms plus the pause between them: nowhere near the 15 seconds of the default.
+    assert.ok(Date.now() - started < 5_000);
+  } finally {
+    await rpc.close();
+    rmSync(dir, { recursive: true, force: true });
   }
 });
