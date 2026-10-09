@@ -29,27 +29,37 @@ export function daysFor(ledgers) {
 }
 
 /**
- * Judges one build from an RPC `getLedgerEntries` result for its code key.
+ * Judges one ledger entry from an RPC `getLedgerEntries` result. `noun` names it in the text ("Wasm code",
+ * "contract instance") and `neverMade` says how it could be missing without having expired.
  * Returns { ok, text, ledgersLeft? }. A missing entry, or one the RPC gave no lifetime for, is never ok.
  */
-export function judge(label, wasmHash, result, minDays) {
-  const name = `${label} ${wasmHash.slice(0, 8)}...`;
+function judgeEntry(name, noun, neverMade, result, minDays) {
   const entry = Array.isArray(result?.entries) ? result.entries[0] : undefined;
-  if (entry === undefined) return { ok: false, text: `${name}  Wasm code not found (expired and archived, or never uploaded)` };
+  if (entry === undefined) return { ok: false, text: `${name}  ${noun} not found (expired and archived, or ${neverMade})` };
   const until = entry.liveUntilLedgerSeq;
   const latest = result.latestLedger;
   if (!Number.isFinite(until) || !Number.isFinite(latest)) {
-    return { ok: false, text: `${name}  the RPC did not say when the Wasm code expires, so expiry cannot be ruled out` };
+    return { ok: false, text: `${name}  the RPC did not say when the ${noun} expires, so expiry cannot be ruled out` };
   }
   const left = until - latest;
-  if (left < 0) return { ok: false, text: `${name}  Wasm code has expired`, ledgersLeft: left };
+  if (left < 0) return { ok: false, text: `${name}  ${noun} has expired`, ledgersLeft: left };
   const days = daysFor(left);
   const tooClose = left * SECONDS_PER_LEDGER < minDays * 86_400;
   return {
     ok: !tooClose,
     ledgersLeft: left,
-    text: `${name}  Wasm code lives about ${days} more days${tooClose ? `: under the ${minDays}-day minimum` : ''}`,
+    text: `${name}  ${noun} lives about ${days} more days${tooClose ? `: under the ${minDays}-day minimum` : ''}`,
   };
+}
+
+/** Judges the Wasm code entry of one build. */
+export function judge(label, wasmHash, result, minDays) {
+  return judgeEntry(`${label} ${wasmHash.slice(0, 8)}...`, 'Wasm code', 'never uploaded', result, minDays);
+}
+
+/** Judges the instance entry of one contract. */
+export function judgeInstance(name, contractId, result, minDays) {
+  return judgeEntry(`${name} ${contractId.slice(0, 8)}...`, 'contract instance', 'never deployed', result, minDays);
 }
 
 function parseRpcUrl(text) {
