@@ -175,3 +175,108 @@ test('the secret is handed over on stdin, never in a command line, and never pri
     }
   }
 });
+
+const OLD_TESTNET_JSON = '{"contractId":"the previous deployment"}\n';
+
+/** Files a sandbox should still hold after a run that failed: nothing was deployed, nothing was overwritten. */
+function sandboxWithPreviousDeployment() {
+  const box = sandbox();
+  writeFileSync(join(box.dir, 'testnet.json'), OLD_TESTNET_JSON);
+  return box;
+}
+
+test('stops, deploys nothing and keeps the old testnet.json when the v1 hash on chain is not the one built', async () => {
+  const box = sandboxWithPreviousDeployment();
+  try {
+    const run = await box.run({ STUB_UPLOAD_HASH: 'ab'.repeat(32) });
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /error: v1 hash mismatch: local [0-9a-f]{64}, on-chain abab/);
+    assert.ok(!box.calls().some((call) => call.startsWith('contract deploy')), 'it deployed anyway');
+    assert.equal(box.file('testnet.json'), OLD_TESTNET_JSON);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('treats an upload that prints Windows line endings as the same hash', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run({ STUB_UPLOAD_HASH: `${sha256(builtWasm('v1'))}\r` });
+    // v2's upload prints the same value, so v2 is the one that does not match; v1 passing is the point here.
+    assert.match(run.stderr, /error: v2 hash mismatch/);
+    assert.ok(!run.stderr.includes('v1 hash mismatch'));
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('stops before uploading when v1 and v2 build to the same bytes', async () => {
+  const box = sandboxWithPreviousDeployment();
+  try {
+    const run = await box.run({ STUB_SAME_BUILD: '1' });
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /v1 and v2 have the same hash; the v2 feature had no effect/);
+    assert.ok(!box.calls().some((call) => call.startsWith('contract upload')), 'it uploaded identical builds');
+    assert.equal(box.file('testnet.json'), OLD_TESTNET_JSON);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('refuses a deploy result that is not a contract address, and keeps the old testnet.json', async () => {
+  const box = sandboxWithPreviousDeployment();
+  try {
+    const run = await box.run({ STUB_DEPLOY_OUTPUT: 'Error: transaction failed' });
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /error: unexpected deploy output: Error: transaction failed/);
+    assert.equal(box.file('testnet.json'), OLD_TESTNET_JSON);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('stops before building when the secret cannot be imported, without echoing it', async () => {
+  const box = sandbox({ env: `FIXTURE_SECRET=${SECRET}\n` });
+  try {
+    const run = await box.run({ STUB_KEYS_ADD_FAILS: '1' });
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /could not import the identity from FIXTURE_SECRET/);
+    assert.ok(!run.stderr.includes(SECRET) && !run.stdout.includes(SECRET));
+    assert.ok(!box.calls().some((call) => call.startsWith('contract build')), 'it built with no usable identity');
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('carries on when friendbot cannot fund the account, in case it is already funded', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run({ STUB_FUND_FAILS: '1' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stderr, /note: friendbot did not fund the account; continuing/);
+    assert.ok(box.file('testnet.json') !== null);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('writes testnet.json last, so any failure above leaves the previous one alone', async () => {
+  const box = sandboxWithPreviousDeployment();
+  try {
+    assert.equal((await box.run()).status, 0);
+    assert.notEqual(box.file('testnet.json'), OLD_TESTNET_JSON);
+    assert.equal(JSON.parse(box.file('testnet.json')).contractId, CONTRACT);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('tells the user what to run next', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run();
+    assert.match(run.stderr, /Next: node scripts\/sync-config\.mjs/);
+  } finally {
+    box.cleanup();
+  }
+});
