@@ -130,7 +130,7 @@ test('--help prints the usage and exits 0 without calling anything', async () =>
     try {
       const run = await box.run([flag]);
       assert.equal(run.status, 0);
-      assert.match(run.stderr, /Usage: bash scripts\/extend\.sh \[ledgers\]/);
+      assert.match(run.stderr, /Usage: bash scripts\/extend\.sh \[--dry-run\] \[ledgers\]/);
       assert.deepEqual(box.calls(), []);
     } finally {
       box.cleanup();
@@ -160,5 +160,53 @@ test('more than one number of ledgers is refused rather than one of them being p
     assert.deepEqual(box.calls(), []);
   } finally {
     box.cleanup();
+  }
+});
+
+test('--dry-run prints the three commands and runs none of them', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run(['--dry-run', '777']);
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(box.calls(), [], 'the stand-in Stellar CLI was called');
+    const lines = run.stdout.trim().split('\n');
+    assert.equal(lines.length, 3);
+    assert.match(lines[0], new RegExp(`^would run: stellar contract extend --id ${CONTRACT} --durability persistent --ledgers-to-extend 777 `));
+    assert.match(lines[1], new RegExp(`--wasm-hash ${V1} --ledgers-to-extend 777 `));
+    assert.match(lines[2], new RegExp(`--wasm-hash ${V2} --ledgers-to-extend 777 `));
+    assert.match(run.stderr, /Dry run: nothing was extended/);
+    assert.doesNotMatch(run.stderr, /Done\./);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('--dry-run works in any order and needs neither the Stellar CLI nor the identity', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run(['888', '--dry-run'], { STUB_NO_IDENTITY: '1', STUB_EXIT: '1' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /--ledgers-to-extend 888 /);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('--dry-run still checks the ledger count and still needs testnet.json', async () => {
+  const bad = sandbox();
+  try {
+    const run = await bad.run(['--dry-run', '0']);
+    assert.equal(run.status, 1);
+    assert.equal(run.stdout, '');
+  } finally {
+    bad.cleanup();
+  }
+  const noJson = sandbox({ withTestnetJson: false });
+  try {
+    const run = await noJson.run(['--dry-run']);
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /testnet\.json not found/);
+  } finally {
+    noJson.cleanup();
   }
 });
