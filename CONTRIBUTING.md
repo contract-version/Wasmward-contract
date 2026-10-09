@@ -15,13 +15,15 @@ for script in scripts/*.sh; do bash -n "$script"; done
 node --test scripts/*.test.mjs
 ```
 
+If you touched the contract, also run the tests that upgrade the compiled Wasm (they are ignored in a plain `cargo test`; the commands are under "Tests" in the [README](README.md)).
+
 That is what [CI](.github/workflows/ci.yml) runs. The scripts need only Node 18 or newer and have no dependencies; please keep it that way.
 
 ## Changing the contract
 
 The deployed fixture on testnet has fixed Wasm hashes, and the other Wasmward repositories pin them (`fixture.wasmward.json` here; the frontend's `src/main.js` and `wasmward.json`; the backend's README example and recorded responses). So:
 
-- **Tests, scripts, docs and CI can change freely.** Comments and lint settings do not change the Wasm either (check with a release build before and after if in doubt).
+- **Tests, scripts, docs and CI can change freely.** Comments and lint settings do not change the Wasm either. To check rather than assume, build before and after with the same toolchain and compare: `node scripts/wasm-info.mjs before.wasm after.wasm` exits 0 only if they are the same Wasm. (Compare builds from one toolchain: another compiler or the Stellar CLI gives another hash for the same source, see [docs/HASH-PROVENANCE.md](docs/HASH-PROVENANCE.md).)
 - **Anything that changes behaviour changes the hash,** and then the fixture has to be redeployed (`scripts/deploy.sh`), the config rewritten (`node scripts/sync-config.mjs`) and the other repositories updated. Say so in the pull request.
 - `v1` and `v2` must keep different hashes. CI fails if they are equal.
 - Do not use this contract as a template. It has one admin and no safeguards beyond that.
