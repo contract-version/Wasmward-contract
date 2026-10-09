@@ -5,7 +5,9 @@
 // build: the upgrade tests move the fixture from v1 to v2, and if v2's code entry has expired by then the
 // upgrade fails. This reads the code entry of every build listed in the config, using only the RPC.
 //
-//   node scripts/check-lifetimes.mjs [--config fixture.wasmward.json] [--min-days 3] [--json]
+//   node scripts/check-lifetimes.mjs [--config fixture.wasmward.json] [--min-days 3] [--json] [--rpc-url URL]
+//
+// --rpc-url asks that RPC instead of the one in the config.
 //
 // With --json it prints one JSON object instead of text: { ok, minDays, builds: [{ label, wasmHash, ok,
 // ledgersLeft?, daysLeft?, message }] }, and the exit code means the same.
@@ -52,6 +54,17 @@ export function judge(label, wasmHash, result, minDays) {
   };
 }
 
+function parseRpcUrl(text) {
+  let url;
+  try {
+    url = new URL(text);
+  } catch {
+    throw new Error(`--rpc-url is not a URL: ${text}`);
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('--rpc-url must start with https:// or http://');
+  return text;
+}
+
 /** Reads the command line. Throws an Error whose message says what is wrong. */
 export function parseArgs(argv) {
   const options = { config: 'fixture.wasmward.json', minDays: 3, json: false };
@@ -66,6 +79,7 @@ export function parseArgs(argv) {
     const flag = argv[i];
     if (flag === '--config') options.config = valueAfter(i++, flag);
     else if (flag === '--min-days') options.minDays = Number(valueAfter(i++, flag));
+    else if (flag === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(i++, flag));
     else if (flag === '--json') options.json = true;
     else throw new Error(`unknown option ${flag}`);
   }
@@ -97,7 +111,8 @@ async function main(argv) {
     return 2;
   }
 
-  const rpcUrl = config?.network?.rpcUrl;
+  // --rpc-url wins over the config, for trying another provider without editing the file.
+  const rpcUrl = options.rpcUrl ?? config?.network?.rpcUrl;
   const builds = Object.values(config?.contracts ?? {}).flatMap((contract) => contract.supported ?? []);
   if (typeof rpcUrl !== 'string' || builds.length === 0) {
     console.error('error: the config has no network.rpcUrl or no supported builds');
