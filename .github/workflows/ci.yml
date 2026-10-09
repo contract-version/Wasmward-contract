@@ -64,6 +64,13 @@ jobs:
             echo "These are the hashes CI produced. They will not match the deployed fixture's (see \`fixture.wasmward.json\`): the same source gives a different Wasm under the Stellar CLI, a plain cargo build and CI, so the hash that counts is the one of the artifact that was uploaded."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # v1 and v2 are only a clean upgrade pair if they share compiler, SDK and every section except the code.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check that v1 and v2 differ only in their code
+        run: node scripts/check-builds.mjs v1.wasm v2.wasm
+
       # The unit tests run the contract as native code. This runs the Wasm that was just built, the way it is
       # upgraded on testnet: deploy v1, upgrade to v2, check the version changed, go back.
       - name: Upgrade the built Wasm from v1 to v2 and back
