@@ -2,21 +2,26 @@
 // Shows what is inside a Wasm file: its size, hash, the compiler and SDK versions it was built with, and its
 // sections. It exists to explain why two builds of the same source have different hashes.
 //
-//   node scripts/wasm-info.mjs <file.wasm>
-//   node scripts/wasm-info.mjs deployed:<wasm hash> [--rpc-url URL] [--config FILE] [--timeout-ms N]
+//   node scripts/wasm-info.mjs <target>
+//   node scripts/wasm-info.mjs <target> <target>       compare two
 //
-// A target is a file, or deployed:<hash> to read the Wasm of that hash from the network (the RPC comes from
-// --rpc-url, or from the network in --config, default fixture.wasmward.json). The bytes that come back are
-// checked: their SHA-256 must be the hash that was asked for.
+// A target is a file, or deployed:<hash> to read the Wasm of that hash from the network. For that, give
+// [--rpc-url URL] or [--config FILE] (default fixture.wasmward.json, whose network is used) and optionally
+// [--timeout-ms N]. The bytes that come back are checked: their SHA-256 must be the hash that was asked for.
 //
-// Exit codes: 0 shown, 2 the target could not be read or is not what it should be. No dependencies; needs
-// Node 18 or newer. Only a deployed: target talks to the network, and then only to read.
+// With one target it describes it. With two it compares them and says how they differ, which answers
+// "why does my build have a different hash from the deployed one?".
+//
+// Exit codes: for one target, 0 shown. For two, like diff: 0 the same Wasm, 1 different. Always 2 when a
+// target could not be read or is not what it should be. No dependencies; needs Node 18 or newer. Only a
+// deployed: target talks to the network, and then only to read.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { codeKeyXdr } from './ledger-keys.mjs';
 import { rpcLookup } from './rpc.mjs';
 import { parseCodeEntry } from './wasm-code.mjs';
+import { compareReport } from './wasm-compare.mjs';
 import { metaValue, readWasm, sectionLabel } from './wasm-sections.mjs';
 
 export { sectionLabel };
@@ -49,7 +54,7 @@ export function parseArgs(argv) {
     else options.targets.push(parseTarget(word));
   }
   if (options.targets.length === 0) throw new Error('give the Wasm to look at: a file, or deployed:<wasm hash>');
-  if (options.targets.length > 1) throw new Error('give one target');
+  if (options.targets.length > 2) throw new Error('give one target to look at, or two to compare');
   return options;
 }
 
@@ -99,16 +104,22 @@ async function main(argv) {
     console.error(`error: ${error.message}`);
     return 2;
   }
-  const [target] = options.targets;
-  let loaded;
-  try {
-    loaded = await load(target, options);
-  } catch (error) {
-    console.error(`error: ${target.kind === 'file' ? `${target.path}: ` : ''}${error.message}`);
-    return 2;
+  const loaded = [];
+  for (const target of options.targets) {
+    try {
+      loaded.push(await load(target, options));
+    } catch (error) {
+      console.error(`error: ${target.kind === 'file' ? `${target.path}: ` : ''}${error.message}`);
+      return 2;
+    }
   }
-  console.log(describe(loaded.name, loaded.info).join('\n'));
-  return 0;
+  if (loaded.length === 1) {
+    console.log(describe(loaded[0].name, loaded[0].info).join('\n'));
+    return 0;
+  }
+  const [a, b] = loaded;
+  console.log(compareReport(a.name, b.name, a.info, b.info).join('\n'));
+  return a.info.sha256 === b.info.sha256 ? 0 : 1;
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
