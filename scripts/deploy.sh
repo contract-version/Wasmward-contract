@@ -104,3 +104,4 @@ cat > testnet.json <<JSON
 }
 JSON
 log "Wrote testnet.json (public values only; the secret stays in .env)."
+log "Next: node scripts/sync-config.mjs   (rewrites fixture.wasmward.json from it)"
