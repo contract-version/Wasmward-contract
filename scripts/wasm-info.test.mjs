@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -310,4 +311,95 @@ test('--json errors still go to stderr with exit 2 and leave stdout empty', asyn
   assert.equal(result.status, 2);
   assert.equal(result.stdout, '');
   assert.match(result.stderr, /^error: missing\.wasm: ENOENT/);
+});
+
+/** Like run(), but also reports what the temp directory held afterwards, for the files named in `read`. */
+function runKeeping(args, files, read) {
+  const dir = mkdtempSync(join(tmpdir(), 'wasm-info-keep-'));
+  for (const [name, bytes] of Object.entries(files)) writeFileSync(join(dir, name), bytes);
+  return new Promise((resolve) =>
+    execFile(process.execPath, [SCRIPT, ...args], { cwd: dir }, (error, stdout, stderr) => {
+      const after = Object.fromEntries(read.map((name) => [name, existsSync(join(dir, name)) ? readFileSync(join(dir, name)) : null]));
+      rmSync(dir, { recursive: true, force: true });
+      resolve({ status: error ? error.code : 0, stdout, stderr, after });
+    }),
+  );
+}
+
+test('--out saves the deployed Wasm, and the saved bytes hash to the deployed hash', async () => {
+  const rpc = await rpcServing();
+  try {
+    const result = await runKeeping(['--rpc-url', rpc.url, `deployed:${HASH}`, '--out', 'saved.wasm'], {}, ['saved.wasm']);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(createHash('sha256').update(result.after['saved.wasm']).digest('hex'), HASH);
+    assert.ok(result.after['saved.wasm'].equals(deployed('v1')));
+    assert.equal(result.stderr, `Saved 1204 bytes to saved.wasm (sha256 ${HASH}).\n`);
+    assert.match(result.stdout, /^deployed:a7a82511\.\.\.\n {2}size {6}1204 bytes/, 'the description is still printed');
+  } finally {
+    await rpc.close();
+  }
+});
+
+test('--out never overwrites a file that is already there', async () => {
+  const rpc = await rpcServing();
+  try {
+    const result = await runKeeping(['--rpc-url', rpc.url, `deployed:${HASH}`, '--out', 'mine.wasm'], { 'mine.wasm': Buffer.from('precious') }, ['mine.wasm']);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /^error: mine\.wasm: already exists, not overwriting it/);
+    assert.equal(result.after['mine.wasm'].toString(), 'precious');
+    assert.equal(result.stdout, '');
+  } finally {
+    await rpc.close();
+  }
+});
+
+test('--out saves nothing when the code that came back is not the code that was asked for', async () => {
+  const rpc = await rpcServing({ tamper: () => recorded.builds.v2.xdr });
+  try {
+    const result = await runKeeping(['--rpc-url', rpc.url, `deployed:${HASH}`, '--out', 'saved.wasm'], {}, ['saved.wasm']);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /does not have hash/);
+    assert.equal(result.after['saved.wasm'], null, 'unverified bytes were written to disk');
+  } finally {
+    await rpc.close();
+  }
+});
+
+test('--out is refused unless there is exactly one deployed target', async () => {
+  const cases = [
+    [['mine.wasm', '--out', 'x.wasm'], { 'mine.wasm': deployed('v1') }],
+    [[`deployed:${HASH}`, 'mine.wasm', '--out', 'x.wasm'], { 'mine.wasm': deployed('v1') }],
+    [[`deployed:${HASH}`, `deployed:${'ab'.repeat(32)}`, '--out', 'x.wasm'], {}],
+  ];
+  for (const [args, files] of cases) {
+    const result = await runKeeping(args, files, ['x.wasm']);
+    assert.equal(result.status, 2, args.join(' '));
+    assert.match(result.stderr, /--out saves one deployed Wasm/);
+    assert.equal(result.after['x.wasm'], null);
+  }
+  assert.throws(() => parseArgs([`deployed:${HASH}`, '--out']), /--out needs a value/);
+});
+
+test('--out into a place that cannot be written is an error that names the file', async () => {
+  const rpc = await rpcServing();
+  try {
+    const result = await runKeeping(['--rpc-url', rpc.url, `deployed:${HASH}`, '--out', 'no-such-directory/saved.wasm'], {}, []);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /^error: no-such-directory\/saved\.wasm: ENOENT/);
+  } finally {
+    await rpc.close();
+  }
+});
+
+test('--out works together with --json, keeping stdout to the JSON alone', async () => {
+  const rpc = await rpcServing();
+  try {
+    const result = await runKeeping(['--json', '--rpc-url', rpc.url, `deployed:${HASH}`, '--out', 'saved.wasm'], {}, ['saved.wasm']);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).sha256, HASH);
+    assert.match(result.stderr, /^Saved 1204 bytes/);
+    assert.notEqual(result.after['saved.wasm'], null);
+  } finally {
+    await rpc.close();
+  }
 });
