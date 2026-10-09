@@ -30,6 +30,32 @@ function leb128(bytes, at, what) {
   }
 }
 
+const SECTION_NAMES = {
+  1: 'type',
+  2: 'import',
+  3: 'function',
+  4: 'table',
+  5: 'memory',
+  6: 'global',
+  7: 'export',
+  8: 'start',
+  9: 'element',
+  10: 'code',
+  11: 'data',
+  12: 'data count',
+};
+
+/** A section's name as shown: "code", or "custom contractmetav0". */
+export function sectionLabel(section) {
+  if (section.id === 0) return `custom ${section.name}`;
+  return SECTION_NAMES[section.id] ?? `unknown (id ${section.id})`;
+}
+
+/** The value of the first metadata entry with this key, or undefined. */
+export function metaValue(info, key) {
+  return info.meta.find((entry) => entry.key === key)?.value;
+}
+
 /** The key/value strings in the body of a `contractmetav0` section. */
 export function parseMeta(body) {
   const entries = [];

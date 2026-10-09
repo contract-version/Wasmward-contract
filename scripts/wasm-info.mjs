@@ -17,33 +17,9 @@ import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { codeKeyXdr } from './ledger-keys.mjs';
 import { rpcLookup } from './rpc.mjs';
 import { parseCodeEntry } from './wasm-code.mjs';
-import { readWasm } from './wasm-sections.mjs';
+import { metaValue, readWasm, sectionLabel } from './wasm-sections.mjs';
 
-const SECTION_NAMES = {
-  1: 'type',
-  2: 'import',
-  3: 'function',
-  4: 'table',
-  5: 'memory',
-  6: 'global',
-  7: 'export',
-  8: 'start',
-  9: 'element',
-  10: 'code',
-  11: 'data',
-  12: 'data count',
-};
-
-/** A section's name as shown: "code", or "custom contractmetav0". */
-export function sectionLabel(section) {
-  if (section.id === 0) return `custom ${section.name}`;
-  return SECTION_NAMES[section.id] ?? `unknown (id ${section.id})`;
-}
-
-/** The value of the first metadata entry with this key, or undefined. */
-function metaValue(info, key) {
-  return info.meta.find((entry) => entry.key === key)?.value;
-}
+export { sectionLabel };
 
 /** The lines that describe one module. `name` is what the user asked about, such as a file name. */
 export function describe(name, info) {
