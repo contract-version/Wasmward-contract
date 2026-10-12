@@ -36,7 +36,10 @@ while [ "$#" -gt 0 ]; do
       exit 0
       ;;
     --config)
-      [ "$#" -ge 2 ] && [ -n "$2" ] && [ "${2#--}" = "$2" ] || { echo "error: --config needs a file" >&2; exit 2; }
+      if [ "$#" -lt 2 ] || [ -z "$2" ] || [ "${2#--}" != "$2" ]; then
+        echo "error: --config needs a file" >&2
+        exit 2
+      fi
       CONFIG="$2"
       shift 2
       ;;
