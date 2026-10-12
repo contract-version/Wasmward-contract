@@ -1,0 +1,34 @@
+name: Reproducibility
+
+# Does a build on Linux, with the Stellar CLI the fixture was deployed with and whatever stable Rust the runner has,
+# give the hashes that are deployed? scripts/verify-hashes.sh answers that on a maintainer's machine; this answers it
+# somewhere that is not one. It is not part of CI: installing the CLI takes minutes, and a red run here means the
+# toolchain moved (see docs/HASH-PROVENANCE.md), not that a change is wrong. Start it by hand, or wait for the monthly run.
+on:
+  schedule:
+    - cron: '41 5 3 * *' # the 3rd of each month, 05:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add the Wasm target
+        run: rustup target add wasm32v1-none
+
+      - name: Install the Stellar CLI the fixture was deployed with
+        run: cargo install --locked stellar-cli --version 27.0.0
+
+      - name: Say which tools these are
+        run: |
+          stellar --version | head -1
+          rustc --version
+
+      - name: Rebuild v1 and v2 and compare with the pinned hashes
+        run: bash scripts/verify-hashes.sh

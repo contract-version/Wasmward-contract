@@ -18,8 +18,8 @@ function jobsOf(text) {
   return heads.map((head, i) => ({ id: head[1], text: after.slice(head.index, heads[i + 1]?.index ?? after.length) }));
 }
 
-test('there are two workflows, and they have jobs', () => {
-  assert.deepEqual(workflows.map((w) => w.name).sort(), ['ci.yml', 'fixture-health.yml']);
+test('there are three workflows, and they have jobs', () => {
+  assert.deepEqual(workflows.map((w) => w.name).sort(), ['ci.yml', 'fixture-health.yml', 'reproducibility.yml']);
   for (const { name, text } of workflows) assert.ok(jobsOf(text).length >= 1, `${name} has no jobs`);
 });
 
@@ -40,7 +40,7 @@ test('no workflow runs on pull_request_target, and none uses a secret', () => {
 test('every action is pinned to a major version, except this project\'s own at main', () => {
   for (const { name, text } of workflows) {
     const uses = [...text.matchAll(/^\s*(?:- )?uses:\s*(\S+)/gm)].map((match) => match[1]);
-    assert.ok(uses.length >= 2, `${name} uses ${uses.length} actions`);
+    assert.ok(uses.length >= 1, `${name} uses no actions, not even checkout`);
     for (const action of uses) {
       const ok = /^[\w.-]+\/[\w.-]+@v\d+$/.test(action) || action === 'contract-version/Wasmward-backend@main';
       assert.ok(ok, `${name}: ${action} is not pinned to a major version`);
