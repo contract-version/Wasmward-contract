@@ -1,9 +1,15 @@
 name: Reproducibility
 
-# Does a build on Linux, with the Stellar CLI the fixture was deployed with and whatever stable Rust the runner has,
-# give the hashes that are deployed? scripts/verify-hashes.sh answers that on a maintainer's machine; this answers it
-# somewhere that is not one. It is not part of CI: installing the CLI takes minutes, and a red run here means the
-# toolchain moved (see docs/HASH-PROVENANCE.md), not that a change is wrong. Start it by hand, or wait for the monthly run.
+# Does a build on Linux, with the Stellar CLI the fixture was deployed with, give the hashes that are deployed?
+# scripts/verify-hashes.sh answers that on a maintainer's machine; this answers it somewhere that is not one, twice:
+#
+#   - with the Rust compiler the fixture was deployed with (1.96.1). A red run here means the build is not
+#     reproducible across machines, which is a finding.
+#   - with whatever stable Rust the runner has. The first run of this workflow found that this gives other hashes
+#     (1161 bytes, not 1204), so it only reports: a red run there means the compiler moved, not that anything is wrong.
+#
+# It is not part of CI: installing the CLI takes minutes. Start it by hand, or wait for the monthly run.
+# See docs/HASH-PROVENANCE.md.
 on:
   schedule:
     - cron: '41 5 3 * *' # the 3rd of each month, 05:41 UTC
@@ -14,13 +20,21 @@ permissions:
 
 jobs:
   verify:
+    name: verify (Rust ${{ matrix.rust }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Only the run with the deployed compiler has to pass.
+    continue-on-error: ${{ matrix.informational }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rust: '1.96.1'
+            informational: false
+          - rust: stable
+            informational: true
     steps:
       - uses: actions/checkout@v4
-
-      - name: Add the Wasm target
-        run: rustup target add wasm32v1-none
 
       # The CLI builds against the system's D-Bus and udev libraries; the first run failed without them.
       - name: Install what the Stellar CLI needs to build
@@ -28,6 +42,11 @@ jobs:
 
       - name: Install the Stellar CLI the fixture was deployed with
         run: cargo install --locked stellar-cli --version 27.0.0
+
+      - name: Use the Rust compiler for this run
+        run: |
+          rustup toolchain install "${{ matrix.rust }}" --profile minimal --target wasm32v1-none
+          echo "RUSTUP_TOOLCHAIN=${{ matrix.rust }}" >> "$GITHUB_ENV"
 
       - name: Say which tools these are
         run: |
