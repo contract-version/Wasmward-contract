@@ -57,9 +57,19 @@ bash scripts/extend.sh            # about 29 days; pass a number of ledgers to c
 
 It needs `testnet.json` and the identity that `scripts/deploy.sh` created.
 
-A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml), runs [Wasmward](https://github.com/contract-version/Wasmward-backend) against the live fixture using [`fixture.wasmward.json`](fixture.wasmward.json) and `check --min-ttl-days 3`. It then runs [`scripts/check-lifetimes.mjs`](scripts/check-lifetimes.mjs), which reads the Wasm code entry of every build in that file, including v2, the build the upgrade tests move to and that Wasmward cannot see while it is not live (`node scripts/check-lifetimes.mjs --min-days 3` does the same by hand; it needs only Node 18 or newer; add `--json` for one machine-readable report, with the same exit codes: 0 fine, 1 a build is missing or too close to expiring, 2 the config or RPC could not be used). A red run means the fixture is missing, unsupported, unreachable or has under three days left: run `scripts/extend.sh`, or `scripts/deploy.sh` if it has gone. After a redeploy, run `node scripts/sync-config.mjs` to rewrite `fixture.wasmward.json` from the new `testnet.json` (`--check` only reports whether it is stale), then update the contract ID and hashes that the Wasmward repositories also keep (`src/demo-config.js` and `wasmward.json` in the frontend; the example in the backend README and the recorded testnet responses in its `test/fixtures/recorded`).
+A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml), checks the live fixture and goes red if:
 
-What to do for each way the fixture can fail (expired, on the wrong build, gone) is in [docs/RECOVERY.md](docs/RECOVERY.md).
+- Wasmward ([the action](https://github.com/contract-version/Wasmward-backend)) finds it missing, unsupported or unreachable, or with under three days left (`check --min-ttl-days 3` on [`fixture.wasmward.json`](fixture.wasmward.json));
+- [`scripts/fixture-status.mjs`](scripts/fixture-status.mjs) finds the Wasm code of a supported build, including v2, which Wasmward cannot see while it is not live, with under three days left, or finds the fixture on a build other than v1.
+
+To ask the same by hand, with only Node 18 or newer and no secret:
+
+```bash
+node scripts/fixture-status.mjs --expect v1     # exit 0 if all is well, 1 if it needs attention, 2 if the RPC could not be used
+```
+
+What to do for each way the fixture can fail (expired, on the wrong build, gone), and what to update in the other Wasmward repositories after a redeploy, is in [docs/RECOVERY.md](docs/RECOVERY.md).
+
 
 ## Scripts
 
