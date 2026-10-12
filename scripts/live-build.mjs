@@ -22,6 +22,7 @@ import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { parseInstanceEntry } from './instance-entry.mjs';
 import { instanceKeyXdr } from './ledger-keys.mjs';
 import { rpcLookup } from './rpc.mjs';
+import { helpFromHeader, wantsHelp } from './help.mjs';
 
 /** Reads the command line. Throws an Error whose message says what is wrong. */
 export function parseArgs(argv) {
@@ -63,6 +64,10 @@ export function judgeLive(name, contractId, result, supported, expect) {
 }
 
 async function main(argv) {
+  if (wantsHelp(argv)) {
+    console.log(helpFromHeader(import.meta.url));
+    return 0;
+  }
   let options;
   let config;
   try {

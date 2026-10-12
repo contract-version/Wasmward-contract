@@ -23,6 +23,7 @@ import { pathToFileURL } from 'node:url';
 import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { codeKeyXdr, instanceKeyXdr } from './ledger-keys.mjs';
 import { rpcLookup } from './rpc.mjs';
+import { helpFromHeader, wantsHelp } from './help.mjs';
 
 export { codeKeyXdr, rpcLookup };
 
@@ -84,6 +85,10 @@ export function parseArgs(argv) {
 }
 
 async function main(argv) {
+  if (wantsHelp(argv)) {
+    console.log(helpFromHeader(import.meta.url));
+    return 0;
+  }
   let options;
   let config;
   try {
