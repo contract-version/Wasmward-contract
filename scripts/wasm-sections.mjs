@@ -13,6 +13,7 @@
 // None of this is needed to run Wasmward. It exists to explain why two builds of the same source have
 // different hashes. Everything read is bounds-checked: the input may come from the network.
 import { createHash } from 'node:crypto';
+import { readExports } from './wasm-exports.mjs';
 
 const MAGIC = Buffer.from([0x00, 0x61, 0x73, 0x6d]);
 const SC_META_V0 = 0;
@@ -93,7 +94,9 @@ export function parseEnvMeta(body) {
 
 /**
  * Reads a Wasm module. Returns
- *   { size, sha256, sections: [{ id, name?, size, digest }], meta: [{ key, value }], interface?: { protocol, preRelease } }
+ *   { size, sha256, sections: [{ id, name?, size, digest }], meta: [{ key, value }], interface?: { protocol, preRelease },
+ *     functions: [name] }
+ * `functions` is the sorted names of the exported functions: for a contract, its callable interface.
  * `meta` joins every contractmetav0 section, in file order. Throws an Error that says what is wrong if the
  * bytes are not a Wasm module or are cut off.
  */
@@ -103,7 +106,7 @@ export function readWasm(input) {
   const version = bytes.readUInt32LE(4);
   if (version !== 1) throw new Error(`this Wasm module has version ${version}; only version 1 exists`);
 
-  const info = { size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), sections: [], meta: [] };
+  const info = { size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), sections: [], meta: [], functions: [] };
   let at = 8;
   while (at < bytes.length) {
     const id = bytes[at++];
@@ -125,5 +128,9 @@ export function readWasm(input) {
     info.sections.push(section);
     at = end;
   }
+  info.functions = readExports(bytes)
+    .filter((entry) => entry.kind === 'function')
+    .map((entry) => entry.name)
+    .sort();
   return info;
 }

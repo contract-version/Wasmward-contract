@@ -154,3 +154,16 @@ test('the real deployed v1 and v2 differ in exactly one section: the code', () =
   assert.deepEqual(differing.map((section) => section.id), [10]);
   assert.equal(differing[0].size, v2.sections.find((section) => section.id === 10).size, 'same size, different content');
 });
+
+test('the module lists the functions it exports, sorted, and a module with no exports lists none', () => {
+  const entry = (name, kind, index) => Buffer.concat([Buffer.from([name.length]), Buffer.from(name), Buffer.from([kind, index])]);
+  const withExports = (...entries) =>
+    Buffer.concat([Buffer.from('0061736d01000000', 'hex'), Buffer.from([7, 1 + entries.reduce((n, e) => n + e.length, 0), entries.length]), ...entries]);
+  const info = readWasm(withExports(entry('version', 0, 2), entry('memory', 2, 0), entry('upgrade', 0, 1)));
+  assert.deepEqual(info.functions, ['upgrade', 'version']);
+  assert.deepEqual(readWasm(Buffer.from('0061736d01000000', 'hex')).functions, []);
+});
+
+test('the real deployed v1 exports the three functions of the contract', () => {
+  assert.deepEqual(readWasm(parseCodeEntry(recorded.builds.v1.xdr).code).functions, ['__constructor', 'upgrade', 'version']);
+});
