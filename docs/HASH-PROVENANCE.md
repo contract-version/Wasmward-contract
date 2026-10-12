@@ -77,6 +77,27 @@ That is why [`scripts/verify-hashes.sh`](../scripts/verify-hashes.sh) rebuilds w
 also why adding doc comments to the contract does not need a redeploy as long as that script still passes, and why
 a `#![deny(missing_docs)]` does not work here: the Soroban macros generate items without documentation.
 
+## Does the deployed hash reproduce on another machine?
+
+Yes, with the same compiler, and no without it. Measured on 2026-10-12 by the
+[Reproducibility workflow](../.github/workflows/reproducibility.yml), which installs the Stellar CLI and runs
+[`scripts/verify-hashes.sh`](../scripts/verify-hashes.sh) on a GitHub Actions runner (Linux):
+
+| Machine | Rust compiler | Stellar CLI | v1 | v2 |
+|---|---|---|---|---|
+| the maintainer's (Windows) | 1.96.1 | 27.0.0 | 1204 bytes, **`a7a82511…`** | 1204 bytes, **`ec040ead…`** |
+| GitHub runner (Linux) | **1.96.1** | 27.0.0 | 1204 bytes, **`a7a82511…`** | 1204 bytes, **`ec040ead…`** |
+| GitHub runner (Linux) | 1.99.0, the runner's stable | 27.0.0 | 1161 bytes, `e422ab2b…` | 1161 bytes, `6db96002…` |
+
+The first two rows are the deployed hashes, byte for byte. So the operating system, the paths on the machine and the
+user name do not matter for the Stellar CLI's build, and the hash is a function of the source, the CLI and the Rust
+compiler. A newer compiler gives smaller Wasm (the compiler's own output was 1264 bytes, not 1307) and so another
+hash; nothing is wrong with it, it is just not the deployed build.
+
+That is also what the workflow keeps checking: its Rust 1.96.1 run has to pass, and its run with the runner's stable
+Rust only reports, because a red there means the compiler moved. If you ever redeploy with a newer compiler, the
+hashes in `fixture.wasmward.json` change, and the other repositories have to follow (see CONTRIBUTING.md).
+
 ## What to do about it
 
 - **Hash the artifact you deploy.** `scripts/deploy.sh` hashes the files it builds, uploads them, and refuses to
