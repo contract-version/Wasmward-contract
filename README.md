@@ -16,7 +16,7 @@ One crate, two builds selected by the Cargo feature `v2`:
 
 The two builds have different Wasm hashes, which is what Wasmward detects.
 
-How the pieces fit together, the scripts and the workflows: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+How the pieces fit together, the scripts and the workflows: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). What changed, and when the fixture was last deployed: [CHANGELOG.md](CHANGELOG.md).
 
 ## Use
 
