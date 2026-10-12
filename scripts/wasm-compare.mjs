@@ -28,6 +28,7 @@ const identity = (list) => list.map((s) => `${s.size}:${s.digest}`).join(',');
 /**
  * How two modules differ:
  *   { sameHash, sizes: [a, b], toolchain: [{ what, a, b }], interface: { a, b } | null,
+ *     functions: { onlyA: [name], onlyB: [name] },
  *     sections: { differ: [{ label, a, b, sameSizes }], onlyA: [label], onlyB: [label] } }
  * A section differs when its content does, even if its size is the same (`sameSizes`); `a` and `b` are sizes.
  * `toolchain` lists the compiler, SDK and CLI entries that are not equal (a missing entry is undefined).
@@ -54,6 +55,10 @@ export function diff(a, b) {
     sizes: [a.size, b.size],
     toolchain,
     interface: ia === ib ? null : { a: ia, b: ib },
+    functions: {
+      onlyA: a.functions.filter((name) => !b.functions.includes(name)),
+      onlyB: b.functions.filter((name) => !a.functions.includes(name)),
+    },
     sections: {
       differ,
       onlyA: [...sa.keys()].filter((label) => !sb.has(label)),
@@ -103,6 +108,8 @@ export function compareReport(nameA, nameB, a, b) {
     const value = metaValue(a, key);
     lines.push(`${what.padEnd(9)} ${t === undefined ? `same (${value === undefined ? 'none' : value})` : `A ${shown(t.a)}, B ${shown(t.b)}`}`);
   }
+  if (d.functions.onlyA.length === 0 && d.functions.onlyB.length === 0) lines.push(`functions same (${a.functions.length === 0 ? 'none' : a.functions.join(', ')})`);
+  else lines.push(`functions ${[d.functions.onlyA.length > 0 ? `only in A: ${d.functions.onlyA.join(', ')}` : '', d.functions.onlyB.length > 0 ? `only in B: ${d.functions.onlyB.join(', ')}` : ''].filter(Boolean).join('; ')}`);
   lines.push(`interface ${d.interface === null ? 'same' : `A protocol ${shown(d.interface.a)}, B protocol ${shown(d.interface.b)}`}`);
   for (const s of d.sections.differ) {
     const how = s.sameSizes ? `same size (${s.a.join('+')}), different content` : `A ${s.a.join('+')}, B ${s.b.join('+')}`;

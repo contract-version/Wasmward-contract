@@ -105,3 +105,32 @@ test('the report says "same size, different content" for a section that changed 
   const lines = compareReport('a', 'b', module({ code: 'code-a' }), module({ code: 'code-b' }));
   assert.ok(lines.includes('section   code: same size (6), different content'));
 });
+
+/** An export section with these function names (indexes in order). */
+const functions = (...names) =>
+  section(7, Buffer.concat([Buffer.from([names.length]), ...names.map((name, index) => Buffer.concat([Buffer.from([name.length]), Buffer.from(name), Buffer.from([0, index])]))]));
+
+test('the real deployed v1 and v2 export the same functions, and the report says which', () => {
+  const d = diff(deployed('v1'), deployed('v2'));
+  assert.deepEqual(d.functions, { onlyA: [], onlyB: [] });
+  const report = compareReport('v1.wasm', 'v2.wasm', deployed('v1'), deployed('v2'));
+  assert.ok(report.includes('functions same (__constructor, upgrade, version)'), report.join('\n'));
+});
+
+test('a function only one side exports is named, on its side', () => {
+  const a = module({ extra: [functions('upgrade', 'version')] });
+  const b = module({ code: 'code-b', extra: [functions('upgrade', 'version', 'drain')] });
+  assert.deepEqual(diff(a, b).functions, { onlyA: [], onlyB: ['drain'] });
+  assert.deepEqual(diff(b, a).functions, { onlyA: ['drain'], onlyB: [] });
+  assert.ok(compareReport('a', 'b', a, b).includes('functions only in B: drain'));
+});
+
+test('functions missing from both directions are both reported on one line', () => {
+  const a = module({ extra: [functions('upgrade', 'old')] });
+  const b = module({ extra: [functions('upgrade', 'new')] });
+  assert.ok(compareReport('a', 'b', a, b).includes('functions only in A: old; only in B: new'));
+});
+
+test('two modules that export nothing have the same functions, and the report says none', () => {
+  assert.ok(compareReport('a', 'b', module(), module({ code: 'code-b' })).includes('functions same (none)'));
+});
