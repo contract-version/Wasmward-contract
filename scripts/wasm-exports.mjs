@@ -7,21 +7,11 @@
 //
 // Kinds: 0 function, 1 table, 2 memory, 3 global, 4 tag.
 
+import { readLeb128 } from './leb128.mjs';
+
 const MAGIC = Buffer.from([0x00, 0x61, 0x73, 0x6d]);
 const EXPORT_SECTION = 7;
 const KINDS = ['function', 'table', 'memory', 'global', 'tag'];
-
-/** Reads an unsigned LEB128 of at most 32 bits. Returns [value, nextOffset]. */
-function leb128(bytes, at, what) {
-  let value = 0;
-  for (let shift = 0, count = 0; ; shift += 7, count += 1) {
-    if (count === 5) throw new Error(`the Wasm has an oversized number in ${what}`);
-    if (at >= bytes.length) throw new Error(`the Wasm ends inside ${what}`);
-    const byte = bytes[at++];
-    value += (byte & 0x7f) * 2 ** shift;
-    if ((byte & 0x80) === 0) return [value, at];
-  }
-}
 
 /**
  * The exports of a Wasm module as [{ name, kind, index }], in file order. Throws an Error that says what is wrong
@@ -35,7 +25,7 @@ export function readExports(input) {
   let at = 8;
   while (at < bytes.length) {
     const id = bytes[at++];
-    const [size, bodyStart] = leb128(bytes, at, `the size of section ${id}`);
+    const [size, bodyStart] = readLeb128(bytes, at, `the size of section ${id}`);
     const end = bodyStart + size;
     if (end > bytes.length) throw new Error(`section ${id} says it is ${size} bytes but only ${bytes.length - bodyStart} remain`);
     if (id !== EXPORT_SECTION) {
@@ -43,10 +33,10 @@ export function readExports(input) {
       continue;
     }
     const exports = [];
-    let [count, cursor] = leb128(bytes, bodyStart, 'the number of exports');
+    let [count, cursor] = readLeb128(bytes, bodyStart, 'the number of exports');
     for (let i = 0; i < count; i += 1) {
       let length;
-      [length, cursor] = leb128(bytes, cursor, `the name of export ${i}`);
+      [length, cursor] = readLeb128(bytes, cursor, `the name of export ${i}`);
       if (cursor + length + 1 > end) throw new Error(`export ${i} runs past the end of the export section`);
       const name = bytes.subarray(cursor, cursor + length).toString('utf8');
       cursor += length;
@@ -54,7 +44,7 @@ export function readExports(input) {
       if (kind === undefined) throw new Error(`export "${name}" has a kind (${bytes[cursor]}) that this reader does not know`);
       cursor += 1;
       let index;
-      [index, cursor] = leb128(bytes, cursor, `the index of export "${name}"`);
+      [index, cursor] = readLeb128(bytes, cursor, `the index of export "${name}"`);
       exports.push({ name, kind, index });
     }
     if (cursor !== end) throw new Error('the export section has bytes left over after its last entry');

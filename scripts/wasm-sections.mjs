@@ -13,23 +13,12 @@
 // None of this is needed to run Wasmward. It exists to explain why two builds of the same source have
 // different hashes. Everything read is bounds-checked: the input may come from the network.
 import { createHash } from 'node:crypto';
+import { readLeb128 } from './leb128.mjs';
 import { readExports } from './wasm-exports.mjs';
 
 const MAGIC = Buffer.from([0x00, 0x61, 0x73, 0x6d]);
 const SC_META_V0 = 0;
 const SC_ENV_META_INTERFACE_VERSION = 0;
-
-/** Reads an unsigned LEB128 of at most 32 bits from `bytes` at `at`. Returns [value, nextOffset]. */
-function leb128(bytes, at, what) {
-  let value = 0;
-  for (let shift = 0, count = 0; ; shift += 7, count += 1) {
-    if (count === 5) throw new Error(`the Wasm has an oversized number in ${what}`);
-    if (at >= bytes.length) throw new Error(`the Wasm ends inside ${what}`);
-    const byte = bytes[at++];
-    value += (byte & 0x7f) * 2 ** shift;
-    if ((byte & 0x80) === 0) return [value, at];
-  }
-}
 
 const SECTION_NAMES = {
   1: 'type',
@@ -110,7 +99,7 @@ export function readWasm(input) {
   let at = 8;
   while (at < bytes.length) {
     const id = bytes[at++];
-    const [size, bodyStart] = leb128(bytes, at, `the size of section ${id}`);
+    const [size, bodyStart] = readLeb128(bytes, at, `the size of section ${id}`);
     const end = bodyStart + size;
     if (end > bytes.length) throw new Error(`section ${id} says it is ${size} bytes but only ${bytes.length - bodyStart} remain`);
     // The digest is of the section's whole body, so two modules can be compared section by section even when
@@ -118,7 +107,7 @@ export function readWasm(input) {
     const section = { id, size, digest: createHash('sha256').update(bytes.subarray(bodyStart, end)).digest('hex') };
     let body = bytes.subarray(bodyStart, end);
     if (id === 0) {
-      const [nameLength, nameStart] = leb128(bytes, bodyStart, 'the name of a custom section');
+      const [nameLength, nameStart] = readLeb128(bytes, bodyStart, 'the name of a custom section');
       if (nameStart + nameLength > end) throw new Error('a custom section has a name longer than the section');
       section.name = bytes.subarray(nameStart, nameStart + nameLength).toString('utf8');
       body = bytes.subarray(nameStart + nameLength, end);
