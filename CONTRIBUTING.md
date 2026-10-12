@@ -21,7 +21,7 @@ That is what [CI](.github/workflows/ci.yml) runs. The scripts need only Node 18 
 
 ## Changing the contract
 
-The deployed fixture on testnet has fixed Wasm hashes, and the other Wasmward repositories pin them (`fixture.wasmward.json` here; the frontend's `src/main.js` and `wasmward.json`; the backend's README example and recorded responses). So:
+The deployed fixture on testnet has fixed Wasm hashes, and the other Wasmward repositories pin them (`fixture.wasmward.json` here; the frontend's `src/demo-config.js` and `wasmward.json`; the backend's README example and recorded responses). So:
 
 - **Tests, scripts, docs and CI can change freely.** Comments and lint settings do not change the Wasm either. To check rather than assume, build before and after with the same toolchain and compare: `node scripts/wasm-info.mjs before.wasm after.wasm` exits 0 only if they are the same Wasm. (Compare builds from one toolchain: another compiler or the Stellar CLI gives another hash for the same source, see [docs/HASH-PROVENANCE.md](docs/HASH-PROVENANCE.md).)
 - **Anything that changes behaviour changes the hash,** and then the fixture has to be redeployed (`scripts/deploy.sh`), the config rewritten (`node scripts/sync-config.mjs`) and the other repositories updated. Say so in the pull request.
