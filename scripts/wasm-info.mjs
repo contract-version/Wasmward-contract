@@ -24,6 +24,7 @@ import { rpcLookup } from './rpc.mjs';
 import { parseCodeEntry } from './wasm-code.mjs';
 import { compareReport, diff, explain } from './wasm-compare.mjs';
 import { metaValue, readWasm, sectionLabel } from './wasm-sections.mjs';
+import { helpFromHeader, wantsHelp } from './help.mjs';
 
 export { sectionLabel };
 
@@ -122,6 +123,10 @@ export async function load(target, options) {
 }
 
 async function main(argv) {
+  if (wantsHelp(argv)) {
+    console.log(helpFromHeader(import.meta.url));
+    return 0;
+  }
   let options;
   try {
     options = parseArgs(argv);

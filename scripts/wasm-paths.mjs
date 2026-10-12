@@ -10,6 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { machinePaths } from './wasm-strings.mjs';
+import { helpFromHeader, wantsHelp } from './help.mjs';
 
 /** How much of a string to show: enough to see what it is, not so much that a long one floods the screen. */
 const SHOWN = 100;
@@ -20,6 +21,10 @@ export function findings(files, read = readFileSync) {
 }
 
 function main(argv) {
+  if (wantsHelp(argv)) {
+    console.log(helpFromHeader(import.meta.url));
+    return 0;
+  }
   const json = argv.includes('--json');
   const files = argv.filter((word) => word !== '--json');
   const flag = files.find((word) => word.startsWith('--'));

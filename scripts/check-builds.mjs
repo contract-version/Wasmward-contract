@@ -16,6 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { diff } from './wasm-compare.mjs';
 import { readExports } from './wasm-exports.mjs';
 import { readWasm } from './wasm-sections.mjs';
+import { helpFromHeader, wantsHelp } from './help.mjs';
 
 /** What the contract may export as functions: its whole public interface. A new one is a change to the contract. */
 export const EXPECTED_FUNCTIONS = ['__constructor', 'upgrade', 'version'];
@@ -57,6 +58,10 @@ export function exportProblems(bytesA, bytesB) {
 }
 
 function main(argv) {
+  if (wantsHelp(argv)) {
+    console.log(helpFromHeader(import.meta.url));
+    return 0;
+  }
   if (argv.length !== 2 || argv.some((word) => word.startsWith('--'))) {
     console.error('error: give the two Wasm files: node scripts/check-builds.mjs <v1.wasm> <v2.wasm>');
     return 2;

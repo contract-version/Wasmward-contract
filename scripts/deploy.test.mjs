@@ -64,7 +64,7 @@ function sandbox({ env: dotenv } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'deploy-'));
   mkdirSync(join(dir, 'scripts'));
   // deploy.sh looks at the builds with these before it uploads anything.
-  for (const file of ['deploy.sh', 'wasm-paths.mjs', 'wasm-strings.mjs']) copyFileSync(new URL(`./${file}`, import.meta.url), join(dir, 'scripts', file));
+  for (const file of ['deploy.sh', 'wasm-paths.mjs', 'wasm-strings.mjs', 'help.mjs']) copyFileSync(new URL(`./${file}`, import.meta.url), join(dir, 'scripts', file));
   if (dotenv !== undefined) writeFileSync(join(dir, '.env'), dotenv);
   const bin = join(dir, 'bin');
   mkdirSync(bin);
