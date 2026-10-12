@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/contract-version/Wasmward-backend/main/schema/wasmward.schema.json",
   "version": 1,
   "network": {
     "rpcUrl": "https://soroban-testnet.stellar.org",
