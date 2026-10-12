@@ -1,0 +1,23 @@
+{
+  "name": "wasmward-contract",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Wasmward test fixture: an upgradeable Soroban contract on testnet, and the scripts that look after it. Nothing here is published.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/contract-version/Wasmward-contract.git"
+  },
+  "bugs": {
+    "url": "https://github.com/contract-version/Wasmward-contract/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "doctor": "node scripts/doctor.mjs",
+    "status": "node scripts/fixture-status.mjs --expect v1",
+    "verify": "bash scripts/verify-hashes.sh"
+  }
+}
