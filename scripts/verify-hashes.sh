@@ -105,6 +105,9 @@ check v1 "$PINNED_V1"
 check v2 "$PINNED_V2"
 
 if [ "$status" -ne 0 ]; then
+  # The deployed hashes are a function of the source, the Stellar CLI and the Rust compiler (docs/HASH-PROVENANCE.md).
+  log "This machine: $(rustc --version 2>/dev/null || echo 'rustc not found'); $(stellar --version 2>/dev/null | head -1)."
+  log "The deployed hashes were built with rustc 1.96.1 and Stellar CLI 27.0.0, and a newer compiler gives other ones."
   log "The working tree no longer builds the deployed fixture. If that is on purpose, see CONTRIBUTING.md: the fixture has to be redeployed and three repositories updated. If not, something that changes the Wasm was edited (the toolchain counts: see docs/HASH-PROVENANCE.md)."
 fi
 exit "$status"

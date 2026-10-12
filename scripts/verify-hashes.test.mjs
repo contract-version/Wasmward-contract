@@ -176,3 +176,19 @@ test('--help prints the usage and exits 0 without building', async () => {
     assert.deepEqual(box.calls(), []);
   });
 });
+
+test('a mismatch names the toolchain the deployed hashes were built with, and the one on this machine', async () => {
+  await inBox(config(V1, 'ab'.repeat(32)), async (box) => {
+    const run = await box.run();
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /^This machine: /m);
+    assert.match(run.stderr, /The deployed hashes were built with rustc 1\.96\.1 and Stellar CLI 27\.0\.0, and a newer compiler gives other ones\./);
+  });
+});
+
+test('a match says nothing about toolchains', async () => {
+  await inBox(undefined, async (box) => {
+    const run = await box.run();
+    assert.doesNotMatch(run.stderr, /This machine:/);
+  });
+});
