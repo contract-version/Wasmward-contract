@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A question about the Wasmward library
+    url: https://github.com/contract-version/Wasmward-backend/issues
+    about: The library lives in its own repository.

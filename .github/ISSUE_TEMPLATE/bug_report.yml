@@ -1,0 +1,28 @@
+name: A bug in the contract, a script or CI
+description: Something here does not do what it says.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If a **secret key** is printed, logged, committed or sent anywhere, do not open a public issue with the details: see SECURITY.md. If the fixture itself is down or expired, use the "testnet fixture" form instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: how-to-reproduce
+    attributes:
+      label: The exact command, and its output
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Node, Rust and Stellar CLI versions
+      description: For example `node 22.4, rustc 1.96.1, stellar 27.0.0`. Say which of them you used.
+    validations:
+      required: true
