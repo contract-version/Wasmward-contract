@@ -104,6 +104,7 @@ Two more workflows are not part of CI: [`fixture-health.yml`](.github/workflows/
 ```bash
 cargo test                  # v1 build
 cargo test --features v2    # v2 build
+npm test                    # the script tests (no install needed: there are no dependencies)
 ```
 
 These run the contract as native code. `contracts/fixture/tests/upgrade.rs` runs the **compiled Wasm** instead: it deploys v1, uploads v2, upgrades and goes back, the way the fixture is upgraded on testnet. It needs the two Wasm files, so a plain `cargo test` lists its tests as ignored. To run them:
