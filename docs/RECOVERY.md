@@ -2,7 +2,13 @@
 
 The fixture is the contract deployed on Stellar testnet that Wasmward's README example, the browser demo and the integration tests point at. Three things go wrong with it. Each has a one-line check and a fix.
 
-Start with what it says about itself. Both commands need only Node 18 or newer and read nothing secret:
+Start with what it says about itself. This needs only Node 18 or newer and reads nothing secret:
+
+```bash
+node scripts/fixture-status.mjs --expect v1
+```
+
+It prints which build is running now and how long the instance and each build's Wasm code have left, and exits 0 only if all is well. The two halves are also scripts of their own, with the same exit codes:
 
 ```bash
 node scripts/live-build.mjs --expect v1     # which build is running now
