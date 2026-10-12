@@ -134,3 +134,18 @@ jobs:
 
       - name: Test the scripts
         run: node --test scripts/*.test.mjs
+
+  # The scripts are written on Windows and run on Linux, and the shell ones are tested with a stand-in `stellar` under
+  # bash. This runs the same tests on a Windows runner (Git Bash is there) so a path or quoting assumption that only
+  # holds on one of them fails here, not on someone's machine.
+  scripts-windows:
+    name: scripts (Windows, Node 22)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test the scripts
+        run: npm test
