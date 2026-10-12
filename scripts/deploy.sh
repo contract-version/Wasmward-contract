@@ -60,8 +60,10 @@ sha256_of() {
 
 # --- Identity -------------------------------------------------------------------------------
 if [ -f .env ]; then
+  set -a
   # shellcheck disable=SC1091
-  set -a; . ./.env; set +a
+  . ./.env
+  set +a
 fi
 
 if [ -z "${FIXTURE_SECRET:-}" ]; then
@@ -91,7 +93,9 @@ stellar contract build --locked --out-dir build/v1 >&2
 stellar contract build --locked --features v2 --out-dir build/v2 >&2
 V1_WASM="build/v1/$CRATE.wasm"
 V2_WASM="build/v2/$CRATE.wasm"
-[ -f "$V1_WASM" ] && [ -f "$V2_WASM" ] || fail "build did not produce $V1_WASM and $V2_WASM"
+if [ ! -f "$V1_WASM" ] || [ ! -f "$V2_WASM" ]; then
+  fail "build did not produce $V1_WASM and $V2_WASM"
+fi
 
 LOCAL_V1="$(sha256_of "$V1_WASM")"
 LOCAL_V2="$(sha256_of "$V2_WASM")"
