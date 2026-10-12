@@ -16,7 +16,7 @@ body:
     id: live-build
     attributes:
       label: What the fixture says about itself
-      description: The output of `node scripts/live-build.mjs --expect v1` and of `node scripts/check-lifetimes.mjs` (both need only Node 18 or newer).
+      description: The output of `node scripts/fixture-status.mjs --expect v1` (it needs only Node 18 or newer).
       render: text
     validations:
       required: true
