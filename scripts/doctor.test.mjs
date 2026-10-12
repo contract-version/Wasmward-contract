@@ -115,3 +115,16 @@ test('run for real: an unknown option exits 2', async () => {
   assert.equal(result.status, 2);
   assert.match(result.stderr, /unknown option --nope/);
 });
+
+test('a newer Rust compiler is reported as one that gives other hashes, and how to use the right one', () => {
+  const newer = { ...EVERYTHING, 'rustc --version': 'rustc 1.99.0 (b940084d7 2026-09-28)' };
+  const entry = byName(checkTools(runner(newer), '22.4.0'), 'rustc version');
+  assert.deepEqual([entry.ok, entry.required, entry.found], [false, false, '1.99.0']);
+  assert.match(entry.fix, /rustup toolchain install 1\.96\.1/);
+  assert.equal(byName(checkTools(runner(newer), '22.4.0'), 'rustc').ok, true, 'it is installed, just not that version');
+});
+
+test('without rustc there is no compiler version line to judge', () => {
+  const { 'rustc --version': _rustc, ...without } = EVERYTHING;
+  assert.equal(byName(checkTools(runner(without), '22.4.0'), 'rustc version'), undefined);
+});

@@ -16,6 +16,9 @@ import { helpFromHeader, wantsHelp } from './help.mjs';
 /** The Stellar CLI version the deployed fixture was built with. A different one may give different hashes. */
 export const STELLAR_CLI_VERSION = '27.0.0';
 
+/** The Rust compiler version the deployed fixture was built with. A newer one gives other Wasm, so other hashes. */
+export const RUSTC_VERSION = '1.96.1';
+
 /** How to run a command and get its text, or undefined if it is not there or fails. */
 export function realRun(command, args) {
   // On Windows the Stellar CLI and rustup are found only through the shell. The words are fixed ones from this file,
@@ -49,6 +52,10 @@ export function checkTools(run, nodeVersion = process.versions.node) {
 
   const rustc = run('rustc', ['--version']);
   add('rustc', 'the contract tests', false, rustc !== undefined, rustc, 'install Rust: https://rustup.rs');
+  if (rustc !== undefined) {
+    const found = versionIn(rustc)?.join('.');
+    add('rustc version', `reproducing the deployed hashes (they were built with ${RUSTC_VERSION}; a newer compiler gives other ones)`, false, found === RUSTC_VERSION, found, `rustup toolchain install ${RUSTC_VERSION}, then run the build with RUSTUP_TOOLCHAIN=${RUSTC_VERSION}`);
+  }
   const cargo = run('cargo', ['--version']);
   add('cargo', 'the contract tests', false, cargo !== undefined, cargo, 'install Rust: https://rustup.rs');
   const fmt = run('cargo', ['fmt', '--version']);
