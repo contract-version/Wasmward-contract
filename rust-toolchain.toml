@@ -1,0 +1,9 @@
+# The compiler the deployed fixture was built with. The Wasm hash is a function of the source, the Stellar CLI and
+# this compiler: 1.96.1 gives the deployed hashes on Windows and on Linux, and a newer one gives other ones (see
+# docs/HASH-PROVENANCE.md). Pinning it here makes every build in this repository, local or in CI, use it.
+# Changing the version changes the hashes, and so means a redeploy (see CONTRIBUTING.md).
+[toolchain]
+channel = "1.96.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32v1-none"]
