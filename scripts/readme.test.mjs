@@ -25,7 +25,7 @@ test('every script is named in the README', () => {
 
 test('every script with a command line has a row in the scripts table', () => {
   const table = readme.slice(readme.indexOf('| Script | What it does'), readme.indexOf('## CI'));
-  const library = /`(rpc|cli-options|strkey|ledger-keys|instance-entry|leb128|wasm-code|wasm-exports|wasm-sections|wasm-compare)`/;
+  const library = /`(rpc|cli-options|strkey|ledger-keys|instance-entry|leb128|wasm-code|wasm-exports|wasm-strings|wasm-sections|wasm-compare)`/;
   for (const name of scripts) {
     const bare = name.replace(/\.(mjs|sh)$/, '');
     if (library.test(`\`${bare}\``) && readme.includes(`\`${bare}\``)) continue; // listed as a building block
