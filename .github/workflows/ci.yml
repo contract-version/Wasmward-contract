@@ -127,5 +127,10 @@ jobs:
         run: |
           for script in scripts/*.sh; do bash -n "$script"; done
           for script in scripts/*.mjs; do node --check "$script"; done
+      # shellcheck is on the runner. It finds the quoting and portability mistakes `bash -n` cannot see.
+      - name: Lint the shell scripts
+        if: matrix.node == 22
+        run: shellcheck scripts/*.sh
+
       - name: Test the scripts
         run: node --test scripts/*.test.mjs
