@@ -104,6 +104,8 @@ CI does exactly this on the Wasm it builds.
 
 `soroban-sdk` is pinned to `=26.1.1`, the version the Stellar CLI 27 template uses. Testnet runs protocol 29; contracts built with an older SDK keep running on a newer protocol.
 
+The Rust compiler is pinned to `1.96.1` in [`rust-toolchain.toml`](rust-toolchain.toml), because the Wasm hash depends on it: with that compiler and Stellar CLI 27.0.0 the deployed hashes reproduce, on Windows and on Linux, and with a newer compiler they do not ([docs/HASH-PROVENANCE.md](docs/HASH-PROVENANCE.md)). Changing the pin means a redeploy.
+
 ## License
 
 Apache-2.0
