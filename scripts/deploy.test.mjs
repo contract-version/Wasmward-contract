@@ -10,7 +10,8 @@ import { test } from 'node:test';
 // These tests run it in a throwaway copy of the repository with a stand-in `stellar`, so what it does (and what
 // it must never do with the secret) can be checked without a network, an account or any money.
 
-const SECRET = 'SBZVMB74Z76QZ3ZOY7UTDFYKMEGKW5XFJEB6PFKBF4UYSSWHG4EDH7PY';
+// Not a real key: it is not a valid seed, which the stand-in `stellar` does not need. Never put a real one in a test.
+const SECRET = 'SNOT-A-REAL-SEED-ONLY-A-STAND-IN-FOR-THE-TESTS';
 const ADMIN = 'GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOKY3B2WSQHG4W37';
 const CONTRACT = 'CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPV';
 
