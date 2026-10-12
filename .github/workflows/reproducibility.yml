@@ -22,6 +22,10 @@ jobs:
       - name: Add the Wasm target
         run: rustup target add wasm32v1-none
 
+      # The CLI builds against the system's D-Bus and udev libraries; the first run failed without them.
+      - name: Install what the Stellar CLI needs to build
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libdbus-1-dev libudev-dev libssl-dev
+
       - name: Install the Stellar CLI the fixture was deployed with
         run: cargo install --locked stellar-cli --version 27.0.0
 
