@@ -49,7 +49,7 @@ Every script has a `*.test.mjs` next to it. Scripts that would spend money or to
 
 | Workflow | When | What |
 |---|---|---|
-| `.github/workflows/ci.yml` | every push and pull request | fmt, clippy, tests for v1 and v2, builds both Wasm, runs the upgrade tests on them, checks v1 and v2 are a clean pair; then the script tests on Node 18, 20 and 22, and shellcheck. |
+| `.github/workflows/ci.yml` | every push and pull request | fmt, clippy, tests for v1 and v2, builds both Wasm, runs the upgrade tests on them, checks v1 and v2 are a clean pair; then the script tests on Node 18, 20 and 22 on Linux and on Node 22 on Windows, and shellcheck. |
 | `.github/workflows/fixture-health.yml` | every Monday, or by hand | Uses Wasmward itself on the live fixture, then `fixture-status.mjs`. Red means: see [RECOVERY.md](RECOVERY.md). |
 | `.github/workflows/reproducibility.yml` | monthly, or by hand | Installs the Stellar CLI and checks that a Linux build with the pinned compiler gives the deployed hashes. |
 

@@ -37,7 +37,7 @@ build) and v2 `ec040ead…`. It was last extended on 2026-10-08 and expires abou
 - Weekly fixture health: Wasmward on the live fixture, then `fixture-status.mjs` with `--expect v1`, written to the job summary.
 - Monthly and by-hand reproducibility check: the pinned compiler must reproduce the deployed hashes, and the runner's stable
   one only reports.
-- CI: shellcheck on the shell scripts; Node 18, 20 and 22; the upgrade tests on the Wasm CI just built.
+- CI: shellcheck on the shell scripts; the script tests on Node 18, 20 and 22 (Linux) and Node 22 (Windows); the upgrade tests on the Wasm CI just built.
 - Time limits on every job, read-only token permissions, actions pinned to a major version, dependabot for the actions only
   (not for Cargo, which would change the hash).
 
