@@ -54,6 +54,29 @@ section   code: same size (352), different content
 The recorded tools are the same but the code differs, so the source (or an unrecorded build setting) is different.
 ```
 
+## The source location is in a plain `cargo` build, and not in the Stellar CLI's
+
+A third cause, found by changing the source and rebuilding (2026-10-12, Windows, Stellar CLI 27.0.0, rustc 1.96.1).
+`contracts/fixture/src/lib.rs` has one panic, the `.expect("admin not set")` in `upgrade`. A plain
+`cargo build --release` keeps where that panic is in the data section: the string `contracts\fixture\src\lib.rs`
+(with backslashes when built on Windows) and the line and column.
+
+| Source | `cargo build --release --target wasm32v1-none` | `stellar contract build --locked` |
+|---|---|---|
+| as committed | 4801 bytes, `1209a8d6…` | 1307 bytes, optimized to 1204: **`a7a82511…`**, the deployed v1 |
+| one line added at the top of the file | 4801 bytes, `da413449…` | 1204 bytes, **`a7a82511…`**, unchanged |
+| a comment added after the `.expect` line | `1209a8d6…`, unchanged | not tried |
+
+So for a plain cargo build, a comment or a doc line **above** the panic changes the hash, and a build on Linux
+gives another one than a build on Windows, because the path is in it. The Stellar CLI's build runs the Wasm
+optimizer, which drops that information, and it reproduces the deployed hashes from this repository's source. The
+v2 build was rebuilt the same way and gives `ec040ead…`, the deployed v2.
+
+That is why [`scripts/verify-hashes.sh`](../scripts/verify-hashes.sh) rebuilds with the Stellar CLI and compares with
+`fixture.wasmward.json`, and why the hashes CI prints for its `cargo build` are not expected to match them. It is
+also why adding doc comments to the contract does not need a redeploy as long as that script still passes, and why
+a `#![deny(missing_docs)]` does not work here: the Soroban macros generate items without documentation.
+
 ## What to do about it
 
 - **Hash the artifact you deploy.** `scripts/deploy.sh` hashes the files it builds, uploads them, and refuses to
@@ -62,6 +85,8 @@ The recorded tools are the same but the code differs, so the source (or an unrec
 - **To see what is on the network:** `node scripts/wasm-info.mjs deployed:<hash>` reads the Wasm of that hash from
   the RPC and shows it. It refuses code whose SHA-256 is not the hash you asked for.
 - **To save it:** `node scripts/wasm-info.mjs deployed:<hash> --out deployed.wasm`.
+- **To ask "does this source still build the deployed fixture?":** `bash scripts/verify-hashes.sh`. It rebuilds v1 and
+  v2 with the Stellar CLI and compares with the pinned hashes. Exit 0 if both match.
 - **To ask "is my build the deployed one?":** `node scripts/wasm-info.mjs build/v1/wasmward_fixture.wasm deployed:<hash>`.
   Like `diff`, it exits 0 if they are the same Wasm, 1 if not, and says how they differ.
 - **Do not put a hash in a supported list because a rebuild produced it.** A rebuild on another machine, with
