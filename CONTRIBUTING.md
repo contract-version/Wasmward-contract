@@ -1,6 +1,6 @@
 # Contributing
 
-This repository is a test fixture for [Wasmward](https://github.com/contract-version/Wasmward-backend): a tiny upgradeable contract, the scripts that deploy and look after it on Stellar testnet, and CI. Keep it small.
+This repository is a test fixture for [Wasmward](https://github.com/contract-version/Wasmward-backend): a tiny upgradeable contract, the scripts that deploy and look after it on Stellar testnet, and CI. Keep it small. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is a map of what is where.
 
 ## Run every check before you push
 
