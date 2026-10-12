@@ -65,7 +65,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       # v1 and v2 are only a clean upgrade pair if they share compiler, SDK and every section except the code.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Check that v1 and v2 differ only in their code
@@ -118,7 +118,7 @@ jobs:
         node: [18, 20, 22]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
       # deploy.sh and extend.sh only run against the real network, so CI never executes them; at least make
@@ -144,7 +144,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Test the scripts

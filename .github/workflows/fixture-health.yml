@@ -31,7 +31,7 @@ jobs:
       # Wasmward only sees the build that is live, and a supported one is all it asks for. This also reads the Wasm code
       # of every supported build (the upgrade tests need v2's to exist) and wants the fixture on v1: the demo and the
       # README example expect it, and an interrupted upgrade test can leave it on v2, which Wasmward alone calls fine.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Check the builds, the lifetimes and that the fixture runs v1
