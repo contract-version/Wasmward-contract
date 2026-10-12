@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { problemsWith } from './check-builds.mjs';
+import { EXPECTED_FUNCTIONS, exportProblems, problemsWith } from './check-builds.mjs';
 import { parseCodeEntry } from './wasm-code.mjs';
 import { readWasm } from './wasm-sections.mjs';
 
@@ -90,7 +90,7 @@ function run(args, files = {}) {
 test('exits 0 and says so for a clean pair', async () => {
   const result = await run(['v1.wasm', 'v2.wasm'], { 'v1.wasm': deployedBytes('v1'), 'v2.wasm': deployedBytes('v2') });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, 'v1 and v2 differ only in their code section, as intended.\n');
+  assert.equal(result.stdout, 'v1 and v2 differ only in their code section, and export the same interface, as intended.\n');
   assert.equal(result.stderr, '');
 });
 
@@ -114,4 +114,63 @@ test('exits 2 for a file that is missing or not Wasm, naming it, and for the wro
     assert.equal(result.status, 2, args.join(' '));
     assert.match(result.stderr, /give the two Wasm files/);
   }
+});
+
+/** Export entries as bytes: name, kind (0 function, 3 global), index. */
+const exportsOf = (...entries) =>
+  section(7, Buffer.concat([Buffer.from([entries.length]), ...entries.map(([name, kind, index]) => Buffer.concat([Buffer.from([name.length]), Buffer.from(name), Buffer.from([kind, index])]))]));
+const interfaceEntries = EXPECTED_FUNCTIONS.map((name, index) => [name, 0, index]);
+const withExports = (entries, options = {}) => moduleBytes({ ...options, extra: [exportsOf(...entries)] });
+
+test('the real deployed v1 and v2 export exactly the contract interface, and the same of it', () => {
+  assert.deepEqual(exportProblems(deployedBytes('v1'), deployedBytes('v2')), []);
+});
+
+test('the interface the check pins is the three functions the contract has', () => {
+  assert.deepEqual(EXPECTED_FUNCTIONS, ['__constructor', 'upgrade', 'version']);
+});
+
+test('a pair with the same exports is clean, whatever order they come in', () => {
+  const a = withExports(interfaceEntries);
+  const b = withExports([...interfaceEntries].reverse(), { code: 'code-2' });
+  assert.deepEqual(exportProblems(a, b), []);
+});
+
+test('a function only one build exports is reported for that build', () => {
+  const v1 = withExports(interfaceEntries);
+  const v2 = withExports([...interfaceEntries, ['drain', 0, 9]], { code: 'code-2' });
+  assert.deepEqual(exportProblems(v1, v2), ['only v2 exports function drain', 'v2 exports functions the contract is not meant to have: drain']);
+  assert.deepEqual(exportProblems(v2, v1), ['only v1 exports function drain', 'v1 exports functions the contract is not meant to have: drain']);
+});
+
+test('a function both builds gained is still a change to the contract', () => {
+  const both = withExports([...interfaceEntries, ['set_admin', 0, 9]]);
+  assert.deepEqual(exportProblems(both, withExports([...interfaceEntries, ['set_admin', 0, 9]], { code: 'code-2' })), [
+    'v1 exports functions the contract is not meant to have: set_admin',
+    'v2 exports functions the contract is not meant to have: set_admin',
+  ]);
+});
+
+test('a function both builds lost is reported, with its name', () => {
+  const without = withExports(interfaceEntries.filter(([name]) => name !== 'upgrade'));
+  assert.deepEqual(exportProblems(without, without), ['v1 no longer exports: upgrade', 'v2 no longer exports: upgrade']);
+});
+
+test('a global or the memory that only one build has is reported by kind', () => {
+  const v1 = withExports([...interfaceEntries, ['memory', 2, 0]]);
+  const v2 = withExports(interfaceEntries, { code: 'code-2' });
+  assert.deepEqual(exportProblems(v1, v2), ['only v1 exports memory memory']);
+});
+
+test('the command exits 1 and names the extra function for a pair that adds one', async () => {
+  const result = await run(['a.wasm', 'b.wasm'], { 'a.wasm': withExports(interfaceEntries), 'b.wasm': withExports([...interfaceEntries, ['drain', 0, 9]], { code: 'code-2' }) });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /^problem: only v2 exports function drain$/m);
+  assert.match(result.stderr, /^problem: v2 exports functions the contract is not meant to have: drain$/m);
+});
+
+test('the command exits 2 when an export section is cut off', async () => {
+  const cut = withExports(interfaceEntries).subarray(0, -3);
+  const result = await run(['a.wasm', 'b.wasm'], { 'a.wasm': withExports(interfaceEntries), 'b.wasm': cut });
+  assert.notEqual(result.status, 0);
 });
