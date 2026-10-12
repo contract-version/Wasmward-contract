@@ -34,6 +34,11 @@ jobs:
       - name: Check the Wasm code of every supported build (at least 3 days of life left)
         run: node scripts/check-lifetimes.mjs --config fixture.wasmward.json --min-days 3
 
+      # The demo and the README example expect v1. The upgrade tests move the fixture to v2 and back, so an
+      # interrupted run can leave it on v2, which Wasmward alone calls fine because v2 is also supported.
+      - name: Check the fixture runs v1
+        run: node scripts/live-build.mjs --config fixture.wasmward.json --expect v1
+
       - name: What to do
         if: failure()
         run: |
