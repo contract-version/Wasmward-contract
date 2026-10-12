@@ -4,6 +4,8 @@ This repository is a test fixture for [Wasmward](https://github.com/contract-ver
 
 ## Run every check before you push
 
+Not sure what you have installed? `node scripts/doctor.mjs` lists what is missing and how to get it.
+
 ```bash
 cargo fmt --all -- --check
 cargo clippy --all-targets --locked -- -D warnings
