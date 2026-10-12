@@ -30,6 +30,7 @@ The script:
 1. Imports the identity from `FIXTURE_SECRET`, or generates a fresh testnet one and saves its secret to `.env`.
 2. Funds it through friendbot.
 3. Builds v1 and v2 into `build/v1` and `build/v2`.
+   Before anything is uploaded it looks inside both for a path from this machine and stops if it finds one.
 4. Uploads both and **fails if a locally computed SHA-256 differs from the hash Stellar returns**.
 5. Deploys v1 with the identity as admin.
 6. Writes `testnet.json` with the contract ID and both hashes. It holds public values only.
