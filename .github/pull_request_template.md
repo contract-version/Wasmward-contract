@@ -5,7 +5,7 @@
 - [ ] No: tests, scripts, docs or CI only (a comment or a lint setting does not change it either)
 - [ ] Yes: the fixture has to be redeployed, `fixture.wasmward.json` rewritten and the other Wasmward repositories updated. I say so here and list them.
 
-To check rather than assume, build before and after with the same toolchain and run `node scripts/wasm-info.mjs before.wasm after.wasm`: it exits 0 only if they are the same Wasm.
+To check rather than assume, run `bash scripts/verify-hashes.sh`: it rebuilds v1 and v2 with the Stellar CLI and exits 0 only if both still have the hashes pinned in `fixture.wasmward.json`.
 
 ## How you checked it
 

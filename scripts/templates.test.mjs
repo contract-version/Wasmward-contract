@@ -56,7 +56,7 @@ test('the forms point at the security policy for a leaked key, and tell nobody t
 test('the commands the templates ask people to run are scripts that exist', () => {
   const all = [...forms.map((form) => read(`.github/ISSUE_TEMPLATE/${form}`)), read('.github/pull_request_template.md')].join('\n');
   const scripts = new Set([...all.matchAll(/\bscripts\/([\w-]+\.(?:mjs|sh))/g)].map((match) => match[1]));
-  for (const name of ['fixture-status.mjs', 'wasm-info.mjs']) assert.ok(scripts.has(name), `no template mentions ${name}`);
+  for (const name of ['fixture-status.mjs', 'verify-hashes.sh']) assert.ok(scripts.has(name), `no template mentions ${name}`);
   for (const name of scripts) assert.ok(existsSync(new URL(`../scripts/${name}`, import.meta.url)), `a template mentions scripts/${name}, which does not exist`);
 });
 
