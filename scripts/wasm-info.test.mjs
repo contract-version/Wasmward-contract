@@ -42,8 +42,9 @@ test('describes the real deployed v1', () => {
   assert.match(lines[4], /^ {2}sdk {7}26\.1\.1#[0-9a-f]{40}$/);
   assert.match(lines[5], /^ {2}cli {7}\d+\.\d+\.\d+#[0-9a-f]{40}$/);
   assert.equal(lines[6], '  interface protocol 26');
-  assert.match(lines[7], /^ {2}sections {2}type 23, import 49, .*, code 352, data 14, custom contractspecv0 387/);
-  assert.equal(lines.length, 8);
+  assert.equal(lines[7], '  functions __constructor, upgrade, version');
+  assert.match(lines[8], /^ {2}sections {2}type 23, import 49, .*, code 352, data 14, custom contractspecv0 387/);
+  assert.equal(lines.length, 9);
 });
 
 test('says plainly when a module records no versions or was not processed by the Stellar CLI', () => {
@@ -273,7 +274,8 @@ test('--json for one target is the module as data, with null for what is not rec
   const real = await run(['--json', 'v1.wasm'], { 'v1.wasm': deployed('v1') });
   assert.equal(real.status, 0, real.stderr);
   const info = JSON.parse(real.stdout);
-  assert.deepEqual(Object.keys(info), ['name', 'size', 'sha256', 'compiler', 'sdk', 'cli', 'interfaceProtocol', 'sections']);
+  assert.deepEqual(Object.keys(info), ['name', 'size', 'sha256', 'compiler', 'sdk', 'cli', 'interfaceProtocol', 'functions', 'sections']);
+  assert.deepEqual(info.functions, ['__constructor', 'upgrade', 'version']);
   assert.equal(info.name, 'v1.wasm');
   assert.equal(info.sha256, HASH);
   assert.match(info.cli, /^\d+\.\d+\.\d+#/);
@@ -282,7 +284,7 @@ test('--json for one target is the module as data, with null for what is not rec
   assert.match(info.sections[0].digest, /^[0-9a-f]{64}$/);
 
   const empty = JSON.parse((await run(['--json', 'bare.wasm'], { 'bare.wasm': bare })).stdout);
-  assert.deepEqual([empty.compiler, empty.sdk, empty.cli, empty.interfaceProtocol, empty.sections], [null, null, null, null, []]);
+  assert.deepEqual([empty.compiler, empty.sdk, empty.cli, empty.interfaceProtocol, empty.functions, empty.sections], [null, null, null, null, [], []]);
 });
 
 test('--json for two targets has the verdict, both modules, the differences and the explanation', async () => {
@@ -402,4 +404,8 @@ test('--out works together with --json, keeping stdout to the JSON alone', async
   } finally {
     await rpc.close();
   }
+});
+
+test('says so when a module exports no functions', () => {
+  assert.ok(describe('bare.wasm', readWasm(Buffer.from('0061736d01000000', 'hex'))).includes('  functions (none exported)'));
 });

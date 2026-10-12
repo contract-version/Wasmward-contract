@@ -37,6 +37,7 @@ export function describe(name, info) {
   row('sdk', metaValue(info, 'rssdkver') ?? '(not recorded)');
   row('cli', metaValue(info, 'cliver') ?? '(none: not processed by the Stellar CLI)');
   row('interface', info.interface === undefined ? '(not recorded)' : `protocol ${info.interface.protocol}`);
+  row('functions', info.functions.length === 0 ? '(none exported)' : info.functions.join(', '));
   row('sections', info.sections.map((s) => `${sectionLabel(s)} ${s.size}`).join(', '));
   return lines;
 }
@@ -51,6 +52,7 @@ export function toJson(name, info) {
     sdk: metaValue(info, 'rssdkver') ?? null,
     cli: metaValue(info, 'cliver') ?? null,
     interfaceProtocol: info.interface?.protocol ?? null,
+    functions: info.functions,
     sections: info.sections.map((s) => ({ section: sectionLabel(s), size: s.size, digest: s.digest })),
   };
 }
