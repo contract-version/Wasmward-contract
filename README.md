@@ -91,7 +91,13 @@ Every Node script prints its description, its options and its exit codes for `--
 
 ## CI
 
-[`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request: `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for both the v1 and v2 builds, then builds both Wasm variants, fails if their hashes are equal, runs the Wasm upgrade tests on what it built, and keeps the Wasm and its hashes as an artifact. A second job runs the script tests (`node --test scripts/*.test.mjs`) offline on Node 18, 20 and 22.
+[`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request, in three jobs:
+
+- **contract**: `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test` for both the v1 and v2 builds (on the compiler pinned in `rust-toolchain.toml`), then builds both Wasm variants, fails if their hashes are equal or if they differ in more than their code or export more than `__constructor`, `upgrade` and `version`, runs the Wasm upgrade tests on what it built, and keeps the Wasm and its hashes as an artifact.
+- **scripts** (Node 18, 20 and 22, on Linux): parses every script, runs `shellcheck` on the shell ones, and runs the script tests offline (`node --test scripts/*.test.mjs`).
+- **scripts (Windows, Node 22)**: the same tests with `npm test`, because the scripts are written on Windows and a path or quoting assumption that holds on only one system should fail here.
+
+Two more workflows are not part of CI: [`fixture-health.yml`](.github/workflows/fixture-health.yml) (weekly, the live fixture) and [`reproducibility.yml`](.github/workflows/reproducibility.yml) (monthly, whether a Linux build reproduces the deployed hashes).
 
 ## Tests
 
