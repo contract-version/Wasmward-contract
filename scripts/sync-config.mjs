@@ -11,6 +11,7 @@
 // only the contract ID, the hashes and the network are copied from it.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { helpFromHeader, wantsHelp } from './help.mjs';
 
 const HASH = /^[0-9a-f]{64}$/;
 const CONTRACT = /^C[A-Z2-7]{55}$/;
@@ -66,6 +67,10 @@ export function parseArgs(argv) {
 }
 
 function main(argv) {
+  if (wantsHelp(argv)) {
+    console.log(helpFromHeader(import.meta.url));
+    return 0;
+  }
   let options;
   let wanted;
   try {

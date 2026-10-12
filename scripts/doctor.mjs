@@ -11,6 +11,7 @@
 // needed for the script tests is missing, 2 the options could not be read. No dependencies; needs Node 18 or newer.
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { helpFromHeader, wantsHelp } from './help.mjs';
 
 /** The Stellar CLI version the deployed fixture was built with. A different one may give different hashes. */
 export const STELLAR_CLI_VERSION = '27.0.0';
@@ -84,6 +85,10 @@ export function render(results) {
 }
 
 function main(argv) {
+  if (wantsHelp(argv)) {
+    console.log(helpFromHeader(import.meta.url));
+    return 0;
+  }
   const unknown = argv.find((word) => word !== '--json');
   if (unknown !== undefined) {
     console.error(`error: unknown option ${unknown}`);
