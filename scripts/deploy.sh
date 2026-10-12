@@ -97,6 +97,11 @@ LOCAL_V1="$(sha256_of "$V1_WASM")"
 LOCAL_V2="$(sha256_of "$V2_WASM")"
 [ "$LOCAL_V1" != "$LOCAL_V2" ] || fail "v1 and v2 have the same hash; the v2 feature had no effect"
 
+# What is uploaded to a public network cannot be taken back, so look first: a path from this machine (a home folder, a
+# user name) inside the Wasm would be published with it.
+command -v node >/dev/null || fail "Node.js is needed to check the builds before they are uploaded (https://nodejs.org)"
+node scripts/wasm-paths.mjs "$V1_WASM" "$V2_WASM" >&2   || fail "a build contains a path from this machine (listed above); nothing was uploaded"
+
 # --- Upload and compare hashes --------------------------------------------------------------
 upload() {
   STELLAR_ACCOUNT="$IDENTITY" stellar contract upload --wasm "$1" --network "$NETWORK" "${CFG[@]}" | tail -n 1 | tr -d '\r'

@@ -43,6 +43,8 @@ case "$1 $2" in
     [ -z "\${STUB_SAME_BUILD:-}" ] || variant=v1
     mkdir -p "$out"
     printf 'wasm-built-as-%s' "$variant" > "$out/wasmward_fixture.wasm"
+    # A build that carries a path from the machine that made it, when the test asks for one.
+    [ -z "\${STUB_LEAK:-}" ] || printf '\\0%s\\0' "$STUB_LEAK" >> "$out/wasmward_fixture.wasm"
     ;;
   "contract upload")
     wasm=""
@@ -61,7 +63,8 @@ exit 0
 function sandbox({ env: dotenv } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'deploy-'));
   mkdirSync(join(dir, 'scripts'));
-  copyFileSync(new URL('./deploy.sh', import.meta.url), join(dir, 'scripts', 'deploy.sh'));
+  // deploy.sh looks at the builds with these before it uploads anything.
+  for (const file of ['deploy.sh', 'wasm-paths.mjs', 'wasm-strings.mjs']) copyFileSync(new URL(`./${file}`, import.meta.url), join(dir, 'scripts', file));
   if (dotenv !== undefined) writeFileSync(join(dir, '.env'), dotenv);
   const bin = join(dir, 'bin');
   mkdirSync(bin);
@@ -330,6 +333,34 @@ test('--help is honoured wherever it is, even after an argument that would be re
     assert.equal(result.status, 0);
     assert.match(result.stderr, /Usage:/);
     assert.deepEqual(box.calls(), []);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('refuses to upload a build that carries a path from this machine, and says nothing was uploaded', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run({ STUB_LEAK: '/home/dell/fixture/src/lib.rs' });
+    assert.equal(run.status, 1);
+    assert.ok(run.stderr.includes('/home/dell/fixture/src/lib.rs'), 'the path is shown, so it can be found');
+    assert.match(run.stderr, /error: a build contains a path from this machine \(listed above\); nothing was uploaded/);
+    const calls = box.calls();
+    assert.equal(calls.filter((call) => call.startsWith('contract build')).length, 2, 'it built first');
+    assert.equal(calls.filter((call) => call.startsWith('contract upload')).length, 0, 'it uploaded anyway');
+    assert.equal(calls.filter((call) => call.startsWith('contract deploy')).length, 0);
+    assert.equal(box.file('testnet.json'), null);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('a clean build is not held up by the check', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run();
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stderr, /No path from the building machine in any of 2 files\./);
   } finally {
     box.cleanup();
   }
