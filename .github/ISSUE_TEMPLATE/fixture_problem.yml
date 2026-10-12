@@ -1,0 +1,29 @@
+name: The testnet fixture is not working
+description: It has expired, runs the wrong build, or a demo or test that depends on it fails.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The fixture is the contract deployed on Stellar testnet that Wasmward's README example, the browser demo and the integration tests point at. It expires about a week after it is last extended, and a weekly workflow reports that. Do not paste a secret key here.
+  - type: textarea
+    id: what-failed
+    attributes:
+      label: What failed, and what did you see?
+      description: The command or page, and what it printed or showed.
+    validations:
+      required: true
+  - type: textarea
+    id: live-build
+    attributes:
+      label: What the fixture says about itself
+      description: The output of `node scripts/live-build.mjs --expect v1` and of `node scripts/check-lifetimes.mjs` (both need only Node 18 or newer).
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: checked-at
+    attributes:
+      label: When did you run them?
+      description: Date and time, with a time zone. Testnet is reset from time to time.
+    validations:
+      required: true
