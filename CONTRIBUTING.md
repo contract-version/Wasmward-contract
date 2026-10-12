@@ -19,6 +19,8 @@ node --test scripts/*.test.mjs
 
 If you touched the contract, also run the tests that upgrade the compiled Wasm (they are ignored in a plain `cargo test`; the commands are under "Tests" in the [README](README.md)).
 
+`npm test` runs the same script tests on any system: the line with `scripts/*.test.mjs` above needs a shell that expands the glob (Git Bash, WSL, macOS, Linux), and PowerShell and older Node versions on Windows do not. `npm run doctor` checks your tools, `npm run status` checks the live fixture and `npm run verify` rebuilds and compares the hashes. Nothing is installed: there are no dependencies.
+
 That is what [CI](.github/workflows/ci.yml) runs. The scripts need only Node 18 or newer and have no dependencies; please keep it that way.
 
 ## Changing the contract
