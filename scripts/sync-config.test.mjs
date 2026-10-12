@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { configFrom, parseArgs, render } from './sync-config.mjs';
+import { configFrom, parseArgs, render, SCHEMA_URL } from './sync-config.mjs';
 
 const CONTRACT = 'CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPV';
 const V1 = 'a7a82511fa284650178b02fe3a4bafc587b95212f2f8ce647f2df5ef4cf42509';
@@ -25,6 +25,7 @@ const testnet = () => ({
 
 test('builds the Wasmward config from what deploy.sh wrote', () => {
   assert.deepEqual(configFrom(testnet()), {
+    $schema: SCHEMA_URL,
     version: 1,
     network: { rpcUrl: 'https://soroban-testnet.stellar.org', passphrase: 'Test SDF Network ; September 2015' },
     contracts: {
@@ -47,7 +48,7 @@ test('copies nothing else from testnet.json: not the admin, the file paths or th
 test('renders two-space JSON with one final newline', () => {
   const text = render(configFrom(testnet()));
   assert.ok(text.endsWith('}\n') && !text.endsWith('\n\n'));
-  assert.ok(text.startsWith('{\n  "version": 1,'));
+  assert.ok(text.startsWith(`{\n  "$schema": "${SCHEMA_URL}",\n  "version": 1,`));
 });
 
 test('refuses a testnet.json that is missing or has bad values, saying which', () => {
@@ -150,4 +151,10 @@ test('--out and --testnet choose the files', async () => {
   const run = await runIn({ 'a.json': TESTNET }, ['--testnet', 'a.json', '--out', 'b.json', '--check']);
   assert.equal(run.status, 1); // b.json does not exist, so it cannot match
   assert.match(run.stderr, /b\.json does not match a\.json/);
+});
+
+test('points an editor at the Wasmward JSON Schema, as the first key', () => {
+  const config = configFrom(testnet());
+  assert.equal(Object.keys(config)[0], '$schema');
+  assert.match(SCHEMA_URL, /^https:\/\/raw\.githubusercontent\.com\/contract-version\/Wasmward-backend\/main\/schema\/wasmward\.schema\.json$/);
 });

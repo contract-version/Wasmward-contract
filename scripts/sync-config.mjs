@@ -15,6 +15,9 @@ import { pathToFileURL } from 'node:url';
 const HASH = /^[0-9a-f]{64}$/;
 const CONTRACT = /^C[A-Z2-7]{55}$/;
 
+/** Lets an editor complete and check the file. Wasmward ignores the key. */
+export const SCHEMA_URL = 'https://raw.githubusercontent.com/contract-version/Wasmward-backend/main/schema/wasmward.schema.json';
+
 /** The Wasmward config for what testnet.json describes. Throws an Error that says what is wrong with it. */
 export function configFrom(testnet) {
   const need = (condition, message) => {
@@ -27,6 +30,7 @@ export function configFrom(testnet) {
   need(HASH.test(testnet?.v2?.wasmHash ?? ''), 'has no valid v2.wasmHash');
   need(testnet.v1.wasmHash !== testnet.v2.wasmHash, 'has the same hash for v1 and v2');
   return {
+    $schema: SCHEMA_URL,
     version: 1,
     network: { rpcUrl: testnet.rpcUrl, passphrase: testnet.passphrase },
     contracts: {
