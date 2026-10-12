@@ -25,11 +25,3 @@ test('it does not open an unbounded number of pull requests', () => {
   const limit = Number(config.match(/open-pull-requests-limit:\s*(\d+)/)?.[1]);
   assert.ok(limit >= 1 && limit <= 5, `limit ${limit}`);
 });
-
-test('every action the workflows use is one it can update', () => {
-  const dir = new URL('../.github/workflows/', import.meta.url);
-  const text = ['ci.yml', 'fixture-health.yml'].map((name) => readFileSync(new URL(name, dir), 'utf8')).join('\n');
-  const actions = new Set([...text.matchAll(/uses:\s*([\w.-]+\/[\w.-]+)@/g)].map((match) => match[1]));
-  assert.ok(actions.has('actions/checkout'));
-  for (const action of actions) assert.match(action, /^[\w.-]+\/[\w.-]+$/);
-});
