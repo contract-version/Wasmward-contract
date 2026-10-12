@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Only the actions the workflows use. Cargo is left out on purpose: a newer soroban-sdk, or any crate in
+  # Cargo.lock, changes the Wasm and so the deployed hash that three repositories pin. Update those by hand,
+  # as a change that says so (see CONTRIBUTING.md).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
