@@ -210,3 +210,15 @@ test('--dry-run still checks the ledger count and still needs testnet.json', asy
     noJson.cleanup();
   }
 });
+
+test('after a real extend it points at the script in this repository for checking, not at a tool that may not be installed', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run([]);
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stderr, /Done\. Check the result with: node scripts\/fixture-status\.mjs --expect v1/);
+    assert.doesNotMatch(run.stderr, /wasmward check/);
+  } finally {
+    box.cleanup();
+  }
+});

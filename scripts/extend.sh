@@ -105,5 +105,5 @@ done
 if [ "$DRY_RUN" = 1 ]; then
   echo "Dry run: nothing was extended." >&2
 else
-  echo "Done. Check the result with: wasmward check" >&2
+  echo "Done. Check the result with: node scripts/fixture-status.mjs --expect v1" >&2
 fi
