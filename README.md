@@ -63,10 +63,11 @@ A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml),
 | `scripts/deploy.sh` | Builds v1 and v2, uploads both, checks the on-chain hashes against the local ones, deploys v1, writes `testnet.json`. | Stellar CLI, a funded testnet identity (it creates one) |
 | `scripts/extend.sh [--dry-run] [ledgers]` | Extends the lifetime of the instance and of both Wasm code entries. `--dry-run` prints the three commands and runs none. | `testnet.json`; for a real run, the Stellar CLI and the identity |
 | `scripts/check-lifetimes.mjs` | Reads the lifetime of the instance and of every supported build's Wasm code straight from the RPC, with `--min-days`, `--json`, `--rpc-url`, `--timeout-ms`. | Node 18+ |
+| `scripts/live-build.mjs` | Says which build each contract runs right now, read from the RPC. `--expect v1` exits 1 if it runs anything else, such as v2 after an interrupted upgrade test. Also `--json`, `--rpc-url`, `--timeout-ms`. Exit 0 fine, 1 wrong or missing build, 2 config or RPC unusable. | Node 18+ |
 | `scripts/sync-config.mjs [--check]` | Rewrites `fixture.wasmward.json` from `testnet.json` after a redeploy. | Node 18+ |
 | `scripts/wasm-info.mjs <target> [<target>]` | Shows what is inside a Wasm (size, hash, compiler, SDK and Stellar CLI versions, sections), or compares two and says how they differ. A target is a file or `deployed:<hash>`, read from the network and checked against the hash. `--json`, `--out FILE`. Exits 0/1 like `diff` when comparing. | Node 18+; the network only for `deployed:` |
 
-`scripts/wasm-info.mjs` is how [Why the same source has more than one Wasm hash](docs/HASH-PROVENANCE.md) was measured. The other modules in `scripts/` (`rpc`, `cli-options`, `strkey`, `ledger-keys`, `wasm-code`, `wasm-sections`, `wasm-compare`) are what these scripts are built on; they have no command line. Every script has tests next to it (`node --test scripts/*.test.mjs`), and the ones that would spend money or touch the network are tested against stand-ins.
+`scripts/wasm-info.mjs` is how [Why the same source has more than one Wasm hash](docs/HASH-PROVENANCE.md) was measured. The other modules in `scripts/` (`rpc`, `cli-options`, `strkey`, `ledger-keys`, `instance-entry`, `wasm-code`, `wasm-sections`, `wasm-compare`) are what these scripts are built on; they have no command line. Every script has tests next to it (`node --test scripts/*.test.mjs`), and the ones that would spend money or touch the network are tested against stand-ins.
 
 ## CI
 
