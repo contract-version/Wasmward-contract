@@ -28,3 +28,11 @@ export function parseTimeout(text) {
   if (!Number.isInteger(ms) || ms < 100 || ms > 120_000) throw new Error('--timeout-ms must be a whole number from 100 to 120000');
   return ms;
 }
+
+/** How many times to retry a transient RPC failure: a whole number from 0 to 10. */
+export function parseRetries(text) {
+  const trimmed = String(text).trim();
+  const n = Number(trimmed);
+  if (trimmed === '' || !Number.isInteger(n) || n < 0 || n > 10) throw new Error('--retries must be a whole number from 0 to 10');
+  return n;
+}

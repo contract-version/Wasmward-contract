@@ -6,8 +6,10 @@
 // that at a glance, and with --expect it fails when the fixture is not on the build you expect.
 //
 //   node scripts/live-build.mjs [--config fixture.wasmward.json] [--expect v1] [--json] [--rpc-url URL]
+//                               [--timeout-ms N] [--retries N]
 //
-// --expect takes a label from the config. --timeout-ms is how long to wait for one answer (default 15000).
+// --expect takes a label from the config. --timeout-ms is how long to wait for one answer (default 15000);
+// --retries is how many times to retry a transient failure (default 1).
 //
 // With --json it prints one JSON object: { ok, contracts: [{ name, contractId, ok, live, label?, wasmHash?,
 // message }] }, where `live` is 'supported' (its hash is on the list), 'unknown' (it is not), 'missing' (no
@@ -18,7 +20,7 @@
 // No dependencies; needs Node 18 or newer. Nothing secret is read.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
+import { parseRetries, parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { parseInstanceEntry } from './instance-entry.mjs';
 import { instanceKeyXdr } from './ledger-keys.mjs';
 import { rpcLookup } from './rpc.mjs';
@@ -33,6 +35,7 @@ export function parseArgs(argv) {
     else if (flag === '--expect') options.expect = valueAfter(argv, i++, flag);
     else if (flag === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(argv, i++, flag));
     else if (flag === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(argv, i++, flag));
+    else if (flag === '--retries') options.retries = parseRetries(valueAfter(argv, i++, flag));
     else if (flag === '--json') options.json = true;
     else throw new Error(`unknown option ${flag}`);
   }
@@ -96,7 +99,7 @@ async function main(argv) {
   let failed = false;
   try {
     for (const [name, contract] of entries) {
-      const result = await rpcLookup(rpcUrl, instanceKeyXdr(contract.contractId), { timeoutMs: options.timeoutMs });
+      const result = await rpcLookup(rpcUrl, instanceKeyXdr(contract.contractId), { timeoutMs: options.timeoutMs, retries: options.retries });
       const verdict = judgeLive(name, contract.contractId, result, contract.supported ?? [], options.expect);
       if (!verdict.ok) failed = true;
       if (!options.json) console.log(verdict.message);

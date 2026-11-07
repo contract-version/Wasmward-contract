@@ -11,10 +11,20 @@
 // only the contract ID, the hashes and the network are copied from it.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { valueAfter } from './cli-options.mjs';
 import { helpFromHeader, wantsHelp } from './help.mjs';
+import { decodeContractId } from './strkey.mjs';
 
 const HASH = /^[0-9a-f]{64}$/;
-const CONTRACT = /^C[A-Z2-7]{55}$/;
+
+function isValidContractId(contractId) {
+  try {
+    decodeContractId(contractId);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** Lets an editor complete and check the file. Wasmward ignores the key. */
 export const SCHEMA_URL = 'https://raw.githubusercontent.com/contract-version/Wasmward-backend/main/schema/wasmward.schema.json';
@@ -26,7 +36,7 @@ export function configFrom(testnet) {
   };
   need(typeof testnet?.rpcUrl === 'string' && testnet.rpcUrl.startsWith('http'), 'has no rpcUrl');
   need(typeof testnet?.passphrase === 'string' && testnet.passphrase !== '', 'has no passphrase');
-  need(CONTRACT.test(testnet?.contractId ?? ''), 'has no valid contractId');
+  need(isValidContractId(testnet?.contractId), 'has no valid contractId');
   need(HASH.test(testnet?.v1?.wasmHash ?? ''), 'has no valid v1.wasmHash');
   need(HASH.test(testnet?.v2?.wasmHash ?? ''), 'has no valid v2.wasmHash');
   need(testnet.v1.wasmHash !== testnet.v2.wasmHash, 'has the same hash for v1 and v2');
@@ -56,12 +66,8 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     if (flag === '--check') options.check = true;
-    else if (flag === '--testnet' || flag === '--out') {
-      const value = argv[i + 1];
-      if (value === undefined || value.trim() === '' || value.startsWith('--')) throw new Error(`${flag} needs a value`);
-      options[flag.slice(2)] = value;
-      i += 1;
-    } else throw new Error(`unknown option ${flag}`);
+    else if (flag === '--testnet' || flag === '--out') options[flag.slice(2)] = valueAfter(argv, i++, flag);
+    else throw new Error(`unknown option ${flag}`);
   }
   return options;
 }

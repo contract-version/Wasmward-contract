@@ -4,7 +4,7 @@
 // each contract's instance once instead of twice.
 //
 //   node scripts/fixture-status.mjs [--config fixture.wasmward.json] [--min-days 3] [--expect v1] [--json]
-//                                   [--rpc-url URL] [--timeout-ms N]
+//                                   [--rpc-url URL] [--timeout-ms N] [--retries N]
 //
 // --expect takes a label from the config; --min-days is how much life each entry must have left (default 3).
 //
@@ -16,7 +16,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { daysFor, judge, judgeInstance } from './check-lifetimes.mjs';
-import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
+import { parseRetries, parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { instanceKeyXdr, codeKeyXdr } from './ledger-keys.mjs';
 import { judgeLive } from './live-build.mjs';
 import { rpcLookup } from './rpc.mjs';
@@ -32,6 +32,7 @@ export function parseArgs(argv) {
     else if (flag === '--expect') options.expect = valueAfter(argv, i++, flag);
     else if (flag === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(argv, i++, flag));
     else if (flag === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(argv, i++, flag));
+    else if (flag === '--retries') options.retries = parseRetries(valueAfter(argv, i++, flag));
     else if (flag === '--json') options.json = true;
     else throw new Error(`unknown option ${flag}`);
   }
@@ -115,7 +116,7 @@ async function main(argv) {
 
   let status;
   try {
-    status = await statusOf(config, options, (key) => rpcLookup(rpcUrl, key, { timeoutMs: options.timeoutMs }));
+    status = await statusOf(config, options, (key) => rpcLookup(rpcUrl, key, { timeoutMs: options.timeoutMs, retries: options.retries }));
   } catch (error) {
     console.error(`error: ${error.message}`);
     return 2;

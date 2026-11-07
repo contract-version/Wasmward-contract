@@ -62,6 +62,7 @@ test('refuses a testnet.json that is missing or has bad values, saying which', (
     [(t) => (t.rpcUrl = 'ftp://x'), /no rpcUrl/],
     [(t) => (t.passphrase = ''), /no passphrase/],
     [(t) => (t.contractId = 'GBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPV'), /no valid contractId/],
+    [(t) => (t.contractId = 'CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPA'), /no valid contractId/],
     [(t) => delete t.contractId, /no valid contractId/],
     [(t) => (t.v1.wasmHash = V1.toUpperCase()), /no valid v1\.wasmHash/],
     [(t) => (t.v2.wasmHash = 'abc'), /no valid v2\.wasmHash/],

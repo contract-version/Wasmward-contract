@@ -273,6 +273,15 @@ test('parseArgs reads --timeout-ms and keeps it within sensible bounds', () => {
   assert.throws(() => parseArgs(['--timeout-ms']), /--timeout-ms needs a value/);
 });
 
+test('parseArgs reads --retries and keeps it within sensible bounds', () => {
+  assert.equal(parseArgs(['--retries', '0']).retries, 0);
+  assert.equal(parseArgs(['--retries', '4']).retries, 4);
+  for (const bad of ['-1', '11', '1.5', 'abc']) {
+    assert.throws(() => parseArgs(['--retries', bad]), /--retries must be/, bad);
+  }
+  assert.throws(() => parseArgs(['--retries']), /--retries needs a value/);
+});
+
 test('--timeout-ms is what the script waits for, end to end', async () => {
   const { execFile } = await import('node:child_process');
   const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
