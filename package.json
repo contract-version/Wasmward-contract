@@ -18,6 +18,9 @@
     "test": "node --test",
     "doctor": "node scripts/doctor.mjs",
     "status": "node scripts/fixture-status.mjs --expect v1",
-    "verify": "bash scripts/verify-hashes.sh"
+    "verify": "bash scripts/verify-hashes.sh",
+    "audit": "node scripts/audit-fleet.mjs --expect v1",
+    "upgrade-plan": "node scripts/upgrade-plan.mjs --target-label v2",
+    "rpc-benchmark": "node scripts/rpc-benchmark.mjs"
   }
 }

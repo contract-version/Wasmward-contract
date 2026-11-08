@@ -28,6 +28,9 @@ All in `scripts/`, Node 18 or newer, no dependencies. Each command prints its de
 | `scripts/fixture-status.mjs` | Which build is live and how long everything has left, in one command. |
 | `scripts/live-build.mjs` | Which build each contract runs now. |
 | `scripts/check-lifetimes.mjs` | How long the instance and each build's Wasm code have left. |
+| `scripts/audit-fleet.mjs` | Multi-contract and multi-profile fleet health, TTL burn rate, and drift auditor. |
+| `scripts/upgrade-plan.mjs` | Pre-upgrade readiness, candidate Wasm verifier, and rollback manifest generator. |
+| `scripts/rpc-benchmark.mjs` | Soroban RPC endpoint latency distribution, ledger lag, and failover readiness analyzer. |
 
 **Check the builds**
 
