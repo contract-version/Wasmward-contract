@@ -54,7 +54,7 @@ If it says `runs ... which is not on the supported list`, the fixture was upgrad
 
 **When.** The fixture is gone and cannot be restored, the admin key leaked (see [SECURITY.md](../SECURITY.md)), or the contract code changed on purpose (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 
-**Steps.**
+**Steps.** `bash scripts/redeploy.sh --yes` does all of them in order and stops at the first that fails (`--dry-run` lists them first); what follows is what it runs, for doing one by hand.
 
 1. `bash scripts/deploy.sh`. It builds both variants, uploads them, checks that the on-chain hashes equal the local ones, deploys v1 and writes `testnet.json`. After a leaked key, delete `.env` and `.stellar-keys/` first so that it creates a fresh identity.
 2. `node scripts/sync-config.mjs` rewrites `fixture.wasmward.json` from `testnet.json` (`--check` only says whether it is stale).
