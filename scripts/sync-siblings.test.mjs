@@ -23,7 +23,10 @@ const FILES = {
   'frontend/src/demo-config.js': `export const CONTRACT_ID = '${OLD_ID}';\nexport const V1_HASH = '${OLD_HASH}';\nexport const RPC_URL = 'https://x';\n`,
   'frontend/wasmward.json': `{\n  "contracts": {\n    "vault": {\n      "contractId": "${OLD_ID}",\n      "supported": [\n        {\n          "wasmHash": "${OLD_HASH}",\n          "label": "v1"\n        }\n      ]\n    }\n  }\n}\n`,
   'backend/README.md': `# Wasmward\n\n    vault: {\n      contractId: '${OLD_ID}',\n      supported: [\n        {\n          wasmHash: '${OLD_HASH}',\n          label: 'v1',\n        },\n      ],\n    },\n`,
+  'backend/test/fixtures/recorded/testnet-v1.json': `{\n  "recordedAt": "2026-10-07T14:20:26.889Z",\n  "contractId": "${OLD_ID}",\n  "expectedWasmHash": "${OLD_HASH}",\n  "getNetwork": { "result": {} }\n}\n`,
 };
+const RECORDING = 'backend/test/fixtures/recorded/testnet-v1.json';
+const current = (text) => text.replace(OLD_ID, NEW_ID).replace(OLD_HASH, NEW_HASH);
 const target = (repo, file) => TARGETS.find((entry) => entry.repo === repo && entry.file === file);
 const pinned = { contractId: NEW_ID, v1Hash: NEW_HASH };
 
@@ -105,14 +108,28 @@ function box(files = FILES, pinnedConfig = config(NEW_ID, NEW_HASH)) {
   };
 }
 
-test('run for real: stale files are rewritten, and a second run finds nothing to do', async () => {
+test('run for real: stale text files are rewritten, and the recording is only reported, so it still exits 1', async () => {
   const b = box();
   try {
     const first = await b.run();
-    assert.equal(first.status, 0, first.stderr);
+    assert.equal(first.status, 1, 'the recording is still out of date');
     assert.match(first.stdout, /^updated {2}frontend\/src\/demo-config\.js {2}\(contract ID, v1 hash\)$/m);
     assert.match(first.stdout, /^updated {2}backend\/README\.md/m);
+    assert.match(first.stdout, /^out of date {2}backend\/test\/fixtures\/recorded\/testnet-v1\.json {2}\(contract ID, v1 hash\)$/m);
+    assert.match(first.stderr, /record them again with node scripts\/record-testnet\.mjs/);
     assert.ok(b.read('frontend/wasmward.json').includes(NEW_ID));
+    assert.equal(b.read(RECORDING), FILES[RECORDING], 'the recording was rewritten by replacing a string');
+  } finally {
+    b.cleanup();
+  }
+});
+
+test('run for real: once the recording is current too, a run finds nothing to do and exits 0', async () => {
+  const b = box({ ...FILES, [RECORDING]: current(FILES[RECORDING]) });
+  try {
+    const first = await b.run();
+    assert.equal(first.status, 0, first.stderr);
+    assert.match(first.stdout, /^updated {2}frontend\/wasmward\.json/m);
     const second = await b.run();
     assert.equal(second.status, 0);
     assert.match(second.stdout, /Every file already holds CD23JAK5\.\.\. and v1 b8b93622\.\.\./);
@@ -134,11 +151,24 @@ test('run for real: --check reports what is stale, writes nothing, and exits 1',
   }
 });
 
-test('run for real: --check exits 0 when everything is current', async () => {
-  const current = Object.fromEntries(Object.entries(FILES).map(([path, text]) => [path, text.replace(OLD_ID, NEW_ID).replace(OLD_HASH, NEW_HASH)]));
-  const b = box(current);
+test('run for real: --check exits 0 when everything is current, the recording included', async () => {
+  const b = box(Object.fromEntries(Object.entries(FILES).map(([path, text]) => [path, current(text)])));
   try {
     assert.equal((await b.run(['--check'])).status, 0);
+  } finally {
+    b.cleanup();
+  }
+});
+
+test('run for real: a recording of another contract fails --check even when every text file is current', async () => {
+  const files = Object.fromEntries(Object.entries(FILES).map(([path, text]) => [path, path === RECORDING ? text : current(text)]));
+  const b = box(files);
+  try {
+    const run = await b.run(['--check']);
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /^out of date {2}backend\/test\/fixtures\/recorded\/testnet-v1\.json/m);
+    assert.doesNotMatch(run.stderr, /Run: node scripts\/sync-siblings\.mjs/, 'running it again would not fix this');
+    assert.match(run.stderr, /record-testnet\.mjs/);
   } finally {
     b.cleanup();
   }
@@ -151,7 +181,8 @@ test('run for real: --json says what was found and whether the check passed', as
     assert.equal(report.ok, false);
     assert.equal(report.check, true);
     assert.deepEqual(report.pinned, pinned);
-    assert.deepEqual(report.files.map((file) => [file.repo, file.file, file.changed.length]), [['frontend', 'src/demo-config.js', 2], ['frontend', 'wasmward.json', 2], ['backend', 'README.md', 2]]);
+    assert.deepEqual(report.files.map((file) => [file.repo, file.file, file.changed.length]), [['frontend', 'src/demo-config.js', 2], ['frontend', 'wasmward.json', 2], ['backend', 'README.md', 2], ['backend', 'test/fixtures/recorded/testnet-v1.json', 2]]);
+    assert.deepEqual(report.files.map((file) => file.checkOnly === true), [false, false, false, true]);
   } finally {
     b.cleanup();
   }

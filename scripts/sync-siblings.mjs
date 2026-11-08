@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Rewrites the contract ID and the v1 hash that the other two Wasmward repositories pin, from fixture.wasmward.json,
 // so that a redeploy does not mean hunting for them by hand: the frontend's src/demo-config.js and wasmward.json, and
-// the example in the backend's README. (The backend's recorded testnet answers are not text: record them with
-// scripts/record-testnet.mjs.)
+// the example in the backend's README. The backend's recorded testnet answers (test/fixtures/recorded/testnet-v1.json)
+// are only checked, never rewritten, because the instance entry inside them is the old contract's: if they name
+// another contract, record them again with scripts/record-testnet.mjs. Until then this exits 1.
 //
 //   node scripts/sync-siblings.mjs [--config fixture.wasmward.json] [--frontend DIR] [--backend DIR] [--check] [--json]
 //
@@ -49,6 +50,17 @@ export const TARGETS = [
     edits: [
       { name: 'contract ID', value: 'contractId', pattern: new RegExp(`(contractId: ')(${CONTRACT.source})(')`) },
       { name: 'v1 hash', value: 'v1Hash', pattern: new RegExp(`(wasmHash: ')(${HASH.source})(',\\s*label: 'v1')`) },
+    ],
+  },
+  {
+    // The recorded answers name the contract too, but replacing a string cannot fix them: the instance entry inside
+    // them is the old contract's. So this one is only checked, and the way to fix it is to record again.
+    repo: 'backend',
+    file: 'test/fixtures/recorded/testnet-v1.json',
+    checkOnly: true,
+    edits: [
+      { name: 'contract ID', value: 'contractId', pattern: new RegExp(`("contractId": ")(${CONTRACT.source})(")`) },
+      { name: 'v1 hash', value: 'v1Hash', pattern: new RegExp(`("expectedWasmHash": ")(${HASH.source})(")`) },
     ],
   },
 ];
@@ -131,8 +143,8 @@ function main(argv) {
     }
     const result = applyTarget(target, text, pinned);
     problems.push(...result.problems.map((sentence) => `${target.repo}: ${sentence}`));
-    report.push({ repo: target.repo, file: target.file, changed: result.changed });
-    if (result.changed.length > 0) pending.push({ path, text: result.text });
+    report.push({ repo: target.repo, file: target.file, changed: result.changed, ...(target.checkOnly ? { checkOnly: true } : {}) });
+    if (result.changed.length > 0 && !target.checkOnly) pending.push({ path, text: result.text });
   }
   if (problems.length > 0) {
     for (const problem of problems) console.error(`error: ${problem}`);
@@ -140,16 +152,22 @@ function main(argv) {
   }
 
   const stale = report.filter((entry) => entry.changed.length > 0);
+  // What cannot be rewritten (the recording) is out of date in either mode, and is fixed by recording again.
+  const needsRecording = stale.filter((entry) => entry.checkOnly);
   if (!options.check) for (const { path, text } of pending) writeFileSync(path, text);
   if (options.json) {
-    console.log(JSON.stringify({ ok: options.check ? stale.length === 0 : true, check: options.check, pinned, files: report }));
+    console.log(JSON.stringify({ ok: options.check ? stale.length === 0 : needsRecording.length === 0, check: options.check, pinned, files: report }));
   } else if (stale.length === 0) {
     console.log(`Every file already holds ${pinned.contractId.slice(0, 8)}... and v1 ${pinned.v1Hash.slice(0, 8)}...`);
   } else {
-    for (const entry of stale) console.log(`${options.check ? 'out of date' : 'updated'}  ${entry.repo}/${entry.file}  (${entry.changed.join(', ')})`);
-    if (options.check) console.error('Run: node scripts/sync-siblings.mjs');
+    for (const entry of stale) {
+      const verb = options.check || entry.checkOnly ? 'out of date' : 'updated';
+      console.log(`${verb}  ${entry.repo}/${entry.file}  (${entry.changed.join(', ')})`);
+    }
+    if (options.check && stale.some((entry) => !entry.checkOnly)) console.error('Run: node scripts/sync-siblings.mjs');
+    if (needsRecording.length > 0) console.error('The recorded answers name another contract: record them again with node scripts/record-testnet.mjs');
   }
-  return options.check && stale.length > 0 ? 1 : 0;
+  return (options.check && stale.length > 0) || needsRecording.length > 0 ? 1 : 0;
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
