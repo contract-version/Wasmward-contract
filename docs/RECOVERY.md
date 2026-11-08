@@ -58,7 +58,7 @@ If it says `runs ... which is not on the supported list`, the fixture was upgrad
 
 1. `bash scripts/deploy.sh`. It builds both variants, uploads them, checks that the on-chain hashes equal the local ones, deploys v1 and writes `testnet.json`. After a leaked key, delete `.env` and `.stellar-keys/` first so that it creates a fresh identity.
 2. `node scripts/sync-config.mjs` rewrites `fixture.wasmward.json` from `testnet.json` (`--check` only says whether it is stale).
-3. Update what the other Wasmward repositories keep: in the frontend `src/demo-config.js` and `wasmward.json`; in the backend the README example and the recorded testnet responses in `test/fixtures/recorded`.
+3. Update what the other Wasmward repositories keep, with the two checkouts next to this one: `node scripts/sync-siblings.mjs` writes the new contract ID and v1 hash into the frontend's `src/demo-config.js` and `wasmward.json` and the backend's README example (`--check` only reports), and `node scripts/record-testnet.mjs` records the live answers into the backend's `test/fixtures/recorded/testnet-v1.json`. Then run each repository's tests and commit.
 4. `node scripts/live-build.mjs --expect v1` and `node scripts/check-lifetimes.mjs` should both exit 0.
 
 A redeploy gives new hashes only if the Wasm changed. The same source built by another compiler also gives another Wasm, which is why the hash that counts is the one of what was uploaded: see [HASH-PROVENANCE.md](HASH-PROVENANCE.md).

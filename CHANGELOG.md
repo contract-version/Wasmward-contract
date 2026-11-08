@@ -30,6 +30,7 @@ docs/RECOVERY.md).
 - `scripts/fixture-status.mjs`, `scripts/live-build.mjs`: which build is live, and how long everything has left, in one command.
 - `scripts/check-builds.mjs` also pins the exported interface (`__constructor`, `upgrade`, `version`) of both builds.
 - `scripts/wasm-paths.mjs`, and `deploy.sh` runs it first: a build that carries a path from the building machine is not uploaded.
+- `scripts/sync-siblings.mjs` and `scripts/record-testnet.mjs`: after a redeploy, write the new contract ID and v1 hash into the frontend and backend files that pin them, and record the backend's replay fixture from the live network. Both were done by hand for the redeploy of 2026-11-08.
 - `scripts/doctor.mjs`: what a contributor still has to install, including the compiler version that reproduces the hashes.
 - `--help` on every Node script, taken from the comment at the top of the script.
 - `wasm-info` shows the exported functions, and comparing two modules names functions only one has.
