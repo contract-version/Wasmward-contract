@@ -25,7 +25,7 @@ docs/RECOVERY.md).
 
 ### Scripts
 
-- `extend.sh` restores each entry before extending it, because an archived entry cannot be extended, and `deploy.sh` restores both builds' code after uploading them (a redeploy left v2 archived). Restoring a live entry is a no-op, tried on testnet.
+- `extend.sh` restores each entry before extending it, because an archived entry cannot be extended, and `deploy.sh` restores both builds' code after uploading them (a redeploy left v2 archived). Restoring a live entry is a no-op, tried on testnet. After a real extend, `extend.sh` runs `fixture-status.mjs` and fails if the fixture still needs attention, because an extend can be a no-op.
 - `scripts/verify-hashes.sh`: does this working tree still build the deployed fixture? Rebuilds with the Stellar CLI and compares.
 - `scripts/fixture-status.mjs`, `scripts/live-build.mjs`: which build is live, and how long everything has left, in one command.
 - `scripts/check-builds.mjs` also pins the exported interface (`__constructor`, `upgrade`, `version`) of both builds.
