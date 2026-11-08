@@ -54,6 +54,7 @@ case "$1 $2" in
     done
     if [ -n "\${STUB_UPLOAD_HASH:-}" ]; then echo "$STUB_UPLOAD_HASH"; else sha256sum "$wasm" | cut -d' ' -f1; fi
     ;;
+  "contract restore") [ -z "\${STUB_RESTORE_FAILS:-}" ] || exit 1 ;;
   "contract deploy") echo "\${STUB_DEPLOY_OUTPUT:-$STUB_CONTRACT}" ;;
 esac
 exit 0
@@ -361,6 +362,36 @@ test('a clean build is not held up by the check', async () => {
     const run = await box.run();
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stderr, /No path from the building machine in any of 2 files\./);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('restores both builds code after uploading them and before deploying, so none is left archived', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run();
+    assert.equal(run.status, 0, run.stderr);
+    const calls = box.calls();
+    const kinds = calls.map((call) => call.split(' ').slice(0, 2).join(' ')).filter((kind) => /contract (upload|restore|deploy)/.test(kind));
+    assert.deepEqual(kinds, ['contract upload', 'contract upload', 'contract restore', 'contract restore', 'contract deploy']);
+    const restores = calls.filter((call) => call.startsWith('contract restore'));
+    assert.match(restores[0], new RegExp(`--wasm-hash ${sha256(builtWasm('v1'))} `));
+    assert.match(restores[1], new RegExp(`--wasm-hash ${sha256(builtWasm('v2'))} `));
+    for (const call of restores) assert.match(call, /--source-account wasmward-fixture --network testnet /);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('stops before deploying when a code entry cannot be restored, and writes nothing', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run({ STUB_RESTORE_FAILS: '1' });
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /error: could not restore the Wasm code [0-9a-f]{64}/);
+    assert.equal(box.calls().filter((call) => call.startsWith('contract deploy')).length, 0);
+    assert.equal(box.file('testnet.json'), null);
   } finally {
     box.cleanup();
   }

@@ -120,6 +120,14 @@ CHAIN_V2="$(upload "$V2_WASM")"
 [ "$CHAIN_V2" = "$LOCAL_V2" ] || fail "v2 hash mismatch: local $LOCAL_V2, on-chain $CHAIN_V2"
 log "Hashes match. v1=$LOCAL_V1 v2=$LOCAL_V2"
 
+# Uploading a build whose code was archived does not bring it back: after the redeploy of 2026-11-08 v1 was live (the
+# deploy needs it) but v2 stayed archived. Restoring an entry that is live is a no-op that exits 0, so do it for both.
+for hash in "$CHAIN_V1" "$CHAIN_V2"; do
+  log "Making sure the code $hash is live (restoring it if it was archived)..."
+  stellar contract restore --wasm-hash "$hash" --source-account "$IDENTITY" --network "$NETWORK" "${CFG[@]}" >&2 \
+    || fail "could not restore the Wasm code $hash"
+done
+
 # --- Deploy v1 ------------------------------------------------------------------------------
 log "Deploying v1..."
 CONTRACT_ID="$(STELLAR_ACCOUNT="$IDENTITY" stellar contract deploy --wasm-hash "$CHAIN_V1" --network "$NETWORK" "${CFG[@]}" -- --admin "$ADMIN" | tail -n 1 | tr -d '\r')"
