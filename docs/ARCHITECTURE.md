@@ -24,6 +24,7 @@ All in `scripts/`, Node 18 or newer, no dependencies. Each command prints its de
 |---|---|
 | `scripts/deploy.sh` | Builds v1 and v2, checks them for build-machine paths, uploads both, checks the on-chain hashes, deploys v1, writes `testnet.json`. |
 | `scripts/extend.sh` | Extends the lifetime of the instance and of both builds' Wasm code. |
+| `scripts/redeploy.sh` | Redeploys and carries the new contract everywhere that pins it, as one command that stops at the first failure. |
 | `scripts/sync-config.mjs` | Rewrites `fixture.wasmward.json` from `testnet.json` after a redeploy. |
 | `scripts/sync-siblings.mjs` | Writes the new contract ID and v1 hash into the frontend and backend files that pin them. |
 | `scripts/record-testnet.mjs` | Records testnet's answers for the fixture for the backend's replay tests. |
