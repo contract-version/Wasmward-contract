@@ -60,7 +60,7 @@ It needs `testnet.json` and the identity that `scripts/deploy.sh` created.
 A weekly workflow, [`fixture-health.yml`](.github/workflows/fixture-health.yml), checks the live fixture and goes red if:
 
 - Wasmward ([the action](https://github.com/contract-version/Wasmward-backend)) finds it missing, unsupported or unreachable, or with under two weeks left (`check --min-ttl-days 3` on [`fixture.wasmward.json`](fixture.wasmward.json));
-- [`scripts/fixture-status.mjs`](scripts/fixture-status.mjs) finds the Wasm code of a supported build, including v2, which Wasmward cannot see while it is not live, with under three days left, or finds the fixture on a build other than v1.
+- [`scripts/fixture-status.mjs`](scripts/fixture-status.mjs) finds the Wasm code of a supported build, including v2, which Wasmward cannot see while it is not live, with under two weeks left, or finds the fixture on a build other than v1.
 
 To ask the same by hand, with only Node 18 or newer and no secret:
 
