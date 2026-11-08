@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-import { codeKeyXdr, daysFor, judge, parseArgs, rpcLookup } from './check-lifetimes.mjs';
+import { codeKeyXdr, daysFor, judge, judgeInstance, parseArgs, renderMarkdownLifetimes, rpcLookup, summarizeLifetimes } from './check-lifetimes.mjs';
 
 const HASH = 'a7a82511fa284650178b02fe3a4bafc587b95212f2f8ce647f2df5ef4cf42509';
 
@@ -389,4 +389,51 @@ test('a mistyped contract address is a usage error (exit 2), not a lookup of som
   const run = await runAgainst({ instance: 7, code: 30, contractId: 'CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPA' });
   assert.equal(run.status, 2);
   assert.match(run.stderr, /checksum does not match/);
+});
+
+test('judge and judgeInstance support --warn-ledgers and --verbose diagnostics', () => {
+  const res = { latestLedger: 100, entries: [{ liveUntilLedgerSeq: 100 + 5 * 17_280 }] };
+  const warned = judge('v1', HASH, res, 3, { warnLedgers: 6 * 17_280 });
+  assert.equal(warned.ok, false);
+  assert.equal(warned.warning, true);
+  assert.match(warned.text, /under the 103680-ledger warning threshold/);
+
+  const verboseVerdict = judgeInstance(
+    'vault',
+    'CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPV',
+    res,
+    3,
+    { verbose: true },
+  );
+  assert.equal(verboseVerdict.ok, true);
+  assert.match(verboseVerdict.text, /\(86400 ledgers left, until #86500\)/);
+});
+
+test('summarizeLifetimes and renderMarkdownLifetimes aggregate and format lifetime statistics', () => {
+  const contracts = [{ name: 'vault', contractId: 'CBR5ZFDI2GBXG66DAEWWHSAK4NDLKSKHWVUEUSOM4UOBM66TI6DYPDPV', ok: true, ledgersLeft: 172_800, daysLeft: 10 }];
+  const builds = [
+    { label: 'v1', wasmHash: HASH, ok: true, ledgersLeft: 345_600, daysLeft: 20 },
+    { label: 'v2', wasmHash: 'ec040ead4e157695a16a9723a5d95a44268f1b8da4c5f6aee7bf4f218dbdc875', ok: false, ledgersLeft: 17_280, daysLeft: 1 },
+  ];
+  const summary = summarizeLifetimes(contracts, builds);
+  assert.equal(summary.totalEntries, 3);
+  assert.equal(summary.okEntries, 2);
+  assert.equal(summary.failingEntries, 1);
+  assert.equal(summary.shortestLedgersLeft, 17_280);
+  assert.equal(summary.shortestDaysLeft, 1);
+  assert.equal(summary.longestDaysLeft, 20);
+
+  const md = renderMarkdownLifetimes({ ok: false, minDays: 3, warnLedgers: 90_000, contracts, builds }).join('\n');
+  assert.match(md, /^# Lifetime Check Report/m);
+  assert.match(md, /\| `vault` \|/);
+  assert.match(md, /2\/3 entries healthy, shortest TTL: 1 days/);
+});
+
+test('parseArgs accepts --warn-ledgers, --markdown, and --verbose, and rejects invalid combinations', () => {
+  const opts = parseArgs(['--warn-ledgers', '120000', '--markdown', '--verbose']);
+  assert.equal(opts.warnLedgers, 120000);
+  assert.equal(opts.markdown, true);
+  assert.equal(opts.verbose, true);
+  assert.throws(() => parseArgs(['--warn-ledgers', '-5']), /--warn-ledgers must be/);
+  assert.throws(() => parseArgs(['--json', '--markdown']), /cannot be used together/);
 });

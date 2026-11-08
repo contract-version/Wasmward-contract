@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { parseArgs, statusOf } from './fixture-status.mjs';
+import { parseArgs, renderMarkdownStatus, statusOf, summarizeStatus } from './fixture-status.mjs';
 import { codeKeyXdr, instanceKeyXdr } from './ledger-keys.mjs';
 
 const V1 = 'a7a82511fa284650178b02fe3a4bafc587b95212f2f8ce647f2df5ef4cf42509';
@@ -168,4 +168,35 @@ test('run for real: exit 2 for an unknown --expect label, before asking the netw
   const out = await run(['--expect', 'v9']);
   assert.equal(out.status, 2);
   assert.match(out.stderr, /--expect v9 is not a label in the config \(v1, v2\)/);
+});
+
+test('statusOf, summarizeStatus, and renderMarkdownStatus support --warn-ledgers, --verbose, and Markdown reports', async () => {
+  const warned = await statusOf(
+    config(),
+    options({ expect: 'v1', warnLedgers: 25 * DAY, verbose: true }),
+    fakeLookup({ days: 20, codeDays: { [V1]: 20, [V2]: 20 } }).lookup,
+  );
+  assert.equal(warned.ok, false);
+  assert.match(warned.contracts[0].instance.message, /warning threshold/);
+  assert.match(warned.builds[0].message, /ledgers left, until #/);
+
+  const healthy = await statusOf(config(), options({ expect: 'v1' }), fakeLookup().lookup);
+  const summary = summarizeStatus(healthy);
+  assert.equal(summary.totalContracts, 1);
+  assert.equal(summary.healthyContracts, 1);
+  assert.equal(summary.totalBuilds, 2);
+  assert.equal(summary.healthyBuilds, 2);
+  assert.equal(summary.shortestDaysLeft, 20);
+
+  const md = renderMarkdownStatus(healthy, { minDays: 3, expect: 'v1' }).join('\n');
+  assert.match(md, /^# Fixture Status Report/m);
+  assert.match(md, /\*\*Expected Build:\*\* `v1`/);
+  assert.match(md, /1\/1 contracts ok, 2\/2 builds ok/);
+
+  const parsed = parseArgs(['--warn-ledgers', '50000', '--markdown', '--verbose']);
+  assert.equal(parsed.warnLedgers, 50000);
+  assert.equal(parsed.markdown, true);
+  assert.equal(parsed.verbose, true);
+  assert.throws(() => parseArgs(['--warn-ledgers', '-1']), /--warn-ledgers must be/);
+  assert.throws(() => parseArgs(['--json', '--markdown']), /cannot be used together/);
 });

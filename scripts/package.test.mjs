@@ -37,7 +37,7 @@ test('the other scripts are shortcuts for commands that exist, with the same opt
   assert.equal(pkg.scripts.verify, 'bash scripts/verify-hashes.sh');
   for (const command of Object.values(pkg.scripts)) {
     const script = command.match(/scripts\/[\w-]+\.(?:mjs|sh)/)?.[0];
-    if (script !== undefined) assert.ok(execFileSync('git', ['ls-files', script], { encoding: 'utf8' }).trim() === script, `${script} does not exist`);
+    if (script !== undefined) assert.ok(execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', script], { encoding: 'utf8' }).trim() === script, `${script} does not exist`);
   }
 });
 

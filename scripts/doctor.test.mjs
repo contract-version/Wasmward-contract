@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { test } from 'node:test';
-import { checkTools, render, STELLAR_CLI_VERSION, versionIn } from './doctor.mjs';
+import { checkTools, parseArgs, render, renderMarkdown, STELLAR_CLI_VERSION, summarizeTools, versionIn } from './doctor.mjs';
 
 /** A stand-in for running commands: `known` maps "command arg arg" to the text it prints; anything else is missing. */
 const runner = (known) => (command, args) => known[[command, ...args].join(' ')];
@@ -127,4 +127,38 @@ test('a newer Rust compiler is reported as one that gives other hashes, and how 
 test('without rustc there is no compiler version line to judge', () => {
   const { 'rustc --version': _rustc, ...without } = EVERYTHING;
   assert.equal(byName(checkTools(runner(without), '22.4.0'), 'rustc version'), undefined);
+});
+
+test('summarizeTools computes required, optional, and reproducibility readiness metrics', () => {
+  const full = summarizeTools(checkTools(runner(EVERYTHING), '22.4.0'));
+  assert.equal(full.scriptTestsReady, true);
+  assert.equal(full.reproducibilityReady, true);
+  assert.equal(full.okCount, full.total);
+  assert.deepEqual(full.missingRequired, []);
+  assert.deepEqual(full.missingOptional, []);
+
+  const partial = summarizeTools(checkTools(runner({ 'git --version': 'git version 2' }), '22.4.0'));
+  assert.equal(partial.scriptTestsReady, true);
+  assert.equal(partial.reproducibilityReady, false);
+  assert.ok(partial.missingOptional.includes('rustc'));
+});
+
+test('render with verbose option and renderMarkdown output detailed diagnostics', () => {
+  const results = checkTools(runner(EVERYTHING), '22.4.0');
+  const verboseText = render(results, { verbose: true }).join('\n');
+  assert.match(verboseText, /used for the script tests/);
+  assert.match(verboseText, /Summary: (\d+)\/\1 checks passed \(reproducibility ready: yes\)\./);
+  assert.match(verboseText, new RegExp(`Summary: ${results.length}/${results.length} checks passed`));
+
+  const md = renderMarkdown(results).join('\n');
+  assert.match(md, /^# Environment Doctor Report/m);
+  assert.match(md, /\*\*Reproducibility Ready:\*\* Yes/);
+  assert.match(md, /\| `node` \| yes \| OK \|/);
+});
+
+test('parseArgs accepts --json, --markdown, and --verbose, and rejects conflicting flags', () => {
+  assert.deepEqual(parseArgs([]), { json: false, markdown: false, verbose: false });
+  assert.deepEqual(parseArgs(['--markdown', '--verbose']), { json: false, markdown: true, verbose: true });
+  assert.throws(() => parseArgs(['--json', '--markdown']), /cannot be used together/);
+  assert.throws(() => parseArgs(['--bogus']), /unknown option --bogus/);
 });

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 // ends up not knowing the thing exists, and one that names a file that is gone sends them looking for it.
 
 const doc = readFileSync(new URL('../docs/ARCHITECTURE.md', import.meta.url), 'utf8');
-const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean);
+const tracked = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' }).split('\n').filter(Boolean);
 
 test('every script that is not a test is on the map, by its path', () => {
   const scripts = tracked.filter((path) => /^scripts\/[\w-]+\.(mjs|sh)$/.test(path) && !path.endsWith('.test.mjs'));

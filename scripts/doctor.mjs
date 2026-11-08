@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Checks that this machine has what the checks in CONTRIBUTING.md need, and says what is missing and how to get it.
 //
-//   node scripts/doctor.mjs [--json]
+//   node scripts/doctor.mjs [--json] [--markdown] [--verbose]
 //
 // Needed for the script tests: Node 18 or newer and git. Needed for the contract tests: Rust (rustc, cargo, rustfmt,
 // clippy) and the wasm32v1-none target. Needed for scripts/verify-hashes.sh and scripts/deploy.sh: the Stellar CLI,
@@ -75,12 +75,42 @@ export function checkTools(run, nodeVersion = process.versions.node) {
   return results;
 }
 
+/** Computes summary statistics for the tool diagnostic results. */
+export function summarizeTools(results) {
+  const required = results.filter((entry) => entry.required);
+  const optional = results.filter((entry) => !entry.required);
+  const missingRequired = required.filter((entry) => !entry.ok).map((entry) => entry.name);
+  const missingOptional = optional.filter((entry) => !entry.ok).map((entry) => entry.name);
+  const byName = new Map(results.map((entry) => [entry.name, entry.ok]));
+  const reproducibilityReady =
+    byName.get('rustc version') === true &&
+    byName.get('stellar version') === true &&
+    byName.get('wasm32v1-none') === true;
+  return {
+    total: results.length,
+    okCount: results.filter((entry) => entry.ok).length,
+    requiredTotal: required.length,
+    requiredOk: required.filter((entry) => entry.ok).length,
+    optionalTotal: optional.length,
+    optionalOk: optional.filter((entry) => entry.ok).length,
+    missingRequired,
+    missingOptional,
+    scriptTestsReady: missingRequired.length === 0,
+    reproducibilityReady,
+  };
+}
+
 /** The report as lines of text. */
-export function render(results) {
+export function render(results, { verbose = false } = {}) {
   const lines = results.map((entry) => {
     const mark = entry.ok ? 'ok     ' : entry.required ? 'MISSING' : 'missing';
     const found = entry.found === undefined ? '' : `  ${entry.found}`;
-    return `${mark}  ${entry.name}${found}${entry.ok ? '' : `\n          needed for ${entry.needFor}; ${entry.fix}`}`;
+    const detail = !entry.ok
+      ? `\n          needed for ${entry.needFor}; ${entry.fix}`
+      : verbose
+        ? `\n          used for ${entry.needFor}`
+        : '';
+    return `${mark}  ${entry.name}${found}${detail}`;
   });
   const lacking = results.filter((entry) => entry.required && !entry.ok);
   const optional = results.filter((entry) => !entry.required && !entry.ok);
@@ -88,7 +118,45 @@ export function render(results) {
   if (lacking.length > 0) lines.push(`Missing, and needed for the script tests: ${lacking.map((entry) => entry.name).join(', ')}.`);
   else lines.push('The script tests can run: node --test scripts/*.test.mjs');
   if (optional.length > 0) lines.push(`Not found, needed only for the Rust and deploy work: ${optional.map((entry) => entry.name).join(', ')}.`);
+  if (verbose) {
+    const summary = summarizeTools(results);
+    lines.push(`Summary: ${summary.okCount}/${summary.total} checks passed (reproducibility ready: ${summary.reproducibilityReady ? 'yes' : 'no'}).`);
+  }
   return lines;
+}
+
+/** Formats the doctor diagnostic results as a GitHub-Flavored Markdown report. */
+export function renderMarkdown(results) {
+  const summary = summarizeTools(results);
+  const lines = [
+    '# Environment Doctor Report',
+    '',
+    `**Script Tests Ready:** ${summary.scriptTestsReady ? 'Yes' : 'No'} | **Reproducibility Ready:** ${summary.reproducibilityReady ? 'Yes' : 'No'} | **Passed:** ${summary.okCount}/${summary.total}`,
+    '',
+    '| Tool | Required | Status | Found | Purpose / Fix |',
+    '|---|---|---|---|---|',
+  ];
+  for (const entry of results) {
+    const status = entry.ok ? 'OK' : (entry.required ? 'MISSING' : 'missing');
+    const note = entry.ok ? entry.needFor : `${entry.needFor} — \`${entry.fix}\``;
+    lines.push(`| \`${entry.name}\` | ${entry.required ? 'yes' : 'no'} | ${status} | ${entry.found ?? 'n/a'} | ${note} |`);
+  }
+  return lines;
+}
+
+/** Reads command line arguments for doctor.mjs. */
+export function parseArgs(argv) {
+  const options = { json: false, markdown: false, verbose: false };
+  for (const word of argv) {
+    if (word === '--json') options.json = true;
+    else if (word === '--markdown') options.markdown = true;
+    else if (word === '--verbose') options.verbose = true;
+    else throw new Error(`unknown option ${word}`);
+  }
+  if (options.json && options.markdown) {
+    throw new Error('--json and --markdown cannot be used together');
+  }
+  return options;
 }
 
 function main(argv) {
@@ -96,15 +164,19 @@ function main(argv) {
     console.log(helpFromHeader(import.meta.url));
     return 0;
   }
-  const unknown = argv.find((word) => word !== '--json');
-  if (unknown !== undefined) {
-    console.error(`error: unknown option ${unknown}`);
+  let options;
+  try {
+    options = parseArgs(argv);
+  } catch (error) {
+    console.error(`error: ${error.message}`);
     return 2;
   }
   const results = checkTools(realRun);
-  const failed = results.some((entry) => entry.required && !entry.ok);
-  if (argv.includes('--json')) console.log(JSON.stringify({ ok: !failed, tools: results }));
-  else for (const line of render(results)) console.log(line);
+  const summary = summarizeTools(results);
+  const failed = !summary.scriptTestsReady;
+  if (options.json) console.log(JSON.stringify({ ok: !failed, summary, tools: results }));
+  else if (options.markdown) for (const line of renderMarkdown(results)) console.log(line);
+  else for (const line of render(results, { verbose: options.verbose })) console.log(line);
   return failed ? 1 : 0;
 }
 

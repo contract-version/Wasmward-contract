@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { describe, load, parseArgs, parseTarget, rpcUrlFor, sectionLabel } from './wasm-info.mjs';
+import { computeWasmStats, describe, load, parseArgs, parseTarget, renderMarkdownComparison, renderMarkdownInfo, rpcUrlFor, sectionLabel, toJson } from './wasm-info.mjs';
 import { parseCodeEntry } from './wasm-code.mjs';
 import { readWasm } from './wasm-sections.mjs';
 
@@ -408,4 +408,36 @@ test('--out works together with --json, keeping stdout to the JSON alone', async
 
 test('says so when a module exports no functions', () => {
   assert.ok(describe('bare.wasm', readWasm(Buffer.from('0061736d01000000', 'hex'))).includes('  functions (none exported)'));
+});
+
+test('computeWasmStats, verbose describe/toJson, and Markdown renderers include breakdown and ledger keys', () => {
+  const v1Info = readWasm(deployed('v1'));
+  const v2Info = readWasm(deployed('v2'));
+  const stats = computeWasmStats(v1Info);
+  assert.equal(stats.totalSize, 1204);
+  assert.equal(stats.codeSize, 352);
+  assert.equal(stats.customSectionCount, 4);
+  assert.equal(stats.exportCount, 3);
+  assert.ok(stats.codeSharePct > 20 && stats.codeSharePct < 40);
+
+  const verboseLines = describe('v1.wasm', v1Info, { verbose: true }).join('\n');
+  assert.match(verboseLines, /codeKey {3}/);
+  assert.match(verboseLines, /breakdown code 352B/);
+
+  const verboseJson = toJson('v1.wasm', v1Info, { verbose: true });
+  assert.equal(verboseJson.codeLedgerKey, stats.codeLedgerKey);
+  assert.deepEqual(verboseJson.stats, stats);
+
+  const mdSingle = renderMarkdownInfo('v1.wasm', v1Info).join('\n');
+  assert.match(mdSingle, /^# Wasm Module: `v1\.wasm`/m);
+  assert.match(mdSingle, /\*\*Ledger Key XDR:\*\*/);
+
+  const mdCompare = renderMarkdownComparison('v1.wasm', 'v2.wasm', v1Info, v2Info).join('\n');
+  assert.match(mdCompare, /^# Wasm Comparison: `v1\.wasm` vs `v2\.wasm`/m);
+  assert.match(mdCompare, /\*\*Verdict:\*\* Different Wasm/);
+
+  const parsed = parseArgs(['--markdown', '--verbose', 'v1.wasm']);
+  assert.equal(parsed.markdown, true);
+  assert.equal(parsed.verbose, true);
+  assert.throws(() => parseArgs(['--json', '--markdown', 'v1.wasm']), /cannot be used together/);
 });

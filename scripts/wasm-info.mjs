@@ -2,8 +2,8 @@
 // Shows what is inside a Wasm file: its size, hash, the compiler and SDK versions it was built with, and its
 // sections. It exists to explain why two builds of the same source have different hashes.
 //
-//   node scripts/wasm-info.mjs <target>
-//   node scripts/wasm-info.mjs <target> <target>       compare two
+//   node scripts/wasm-info.mjs <target> [--json] [--markdown] [--verbose]
+//   node scripts/wasm-info.mjs <target> <target> [--json] [--markdown] [--verbose]       compare two
 //
 // A target is a file, or deployed:<hash> to read the Wasm of that hash from the network. For that, give
 // [--rpc-url URL] or [--config FILE] (default fixture.wasmward.json, whose network is used) and optionally
@@ -28,8 +28,30 @@ import { helpFromHeader, wantsHelp } from './help.mjs';
 
 export { sectionLabel };
 
+/** Computes section breakdown and ledger key statistics for a parsed Wasm module. */
+export function computeWasmStats(info) {
+  const codeSection = info.sections.find((s) => s.id === 10);
+  const codeSize = codeSection ? codeSection.size : 0;
+  const customSections = info.sections.filter((s) => s.id === 0);
+  const customSize = customSections.reduce((sum, s) => sum + s.size, 0);
+  const standardSections = info.sections.filter((s) => s.id !== 0);
+  const standardSize = standardSections.reduce((sum, s) => sum + s.size, 0);
+  const codeSharePct = info.size > 0 ? Math.round((codeSize / info.size) * 1000) / 10 : 0;
+  return {
+    totalSize: info.size,
+    codeSize,
+    customSize,
+    standardSize,
+    codeSharePct,
+    standardSectionCount: standardSections.length,
+    customSectionCount: customSections.length,
+    exportCount: info.functions.length,
+    codeLedgerKey: codeKeyXdr(info.sha256),
+  };
+}
+
 /** The lines that describe one module. `name` is what the user asked about, such as a file name. */
-export function describe(name, info) {
+export function describe(name, info, { verbose = false } = {}) {
   const lines = [name];
   const row = (label, value) => lines.push(`  ${label.padEnd(10)}${value}`);
   row('size', `${info.size} bytes`);
@@ -40,12 +62,20 @@ export function describe(name, info) {
   row('interface', info.interface === undefined ? '(not recorded)' : `protocol ${info.interface.protocol}`);
   row('functions', info.functions.length === 0 ? '(none exported)' : info.functions.join(', '));
   row('sections', info.sections.map((s) => `${sectionLabel(s)} ${s.size}`).join(', '));
+  if (verbose) {
+    const stats = computeWasmStats(info);
+    row('codeKey', stats.codeLedgerKey);
+    row('breakdown', `code ${stats.codeSize}B (${stats.codeSharePct}%), custom ${stats.customSize}B (${stats.customSectionCount} sections), standard ${stats.standardSize}B`);
+    for (const s of info.sections) {
+      lines.push(`    - ${sectionLabel(s).padEnd(24)} ${String(s.size).padStart(5)} bytes  sha256:${s.digest.slice(0, 16)}...`);
+    }
+  }
   return lines;
 }
 
 /** One module as plain data, for --json. Anything not recorded in the module is null. */
-export function toJson(name, info) {
-  return {
+export function toJson(name, info, { verbose = false } = {}) {
+  const base = {
     name,
     size: info.size,
     sha256: info.sha256,
@@ -56,6 +86,59 @@ export function toJson(name, info) {
     functions: info.functions,
     sections: info.sections.map((s) => ({ section: sectionLabel(s), size: s.size, digest: s.digest })),
   };
+  if (verbose) {
+    base.codeLedgerKey = codeKeyXdr(info.sha256);
+    base.stats = computeWasmStats(info);
+  }
+  return base;
+}
+
+/** Renders a single Wasm module description as GitHub-Flavored Markdown. */
+export function renderMarkdownInfo(name, info) {
+  const stats = computeWasmStats(info);
+  const lines = [
+    `# Wasm Module: \`${name}\``,
+    '',
+    `- **Size:** ${info.size} bytes (code: ${stats.codeSize}B / ${stats.codeSharePct}%, custom: ${stats.customSize}B)`,
+    `- **SHA-256:** \`${info.sha256}\``,
+    `- **Ledger Key XDR:** \`${stats.codeLedgerKey}\``,
+    `- **Compiler:** \`${metaValue(info, 'rsver') ?? '(not recorded)'}\``,
+    `- **SDK:** \`${metaValue(info, 'rssdkver') ?? '(not recorded)'}\``,
+    `- **CLI:** \`${metaValue(info, 'cliver') ?? '(none)'}\``,
+    `- **Interface:** ${info.interface === undefined ? '(not recorded)' : `protocol ${info.interface.protocol}`}`,
+    `- **Functions:** ${info.functions.length === 0 ? '(none exported)' : info.functions.map((f) => `\`${f}\``).join(', ')}`,
+    '',
+    '## Sections',
+    '',
+    '| Section | Size (bytes) | SHA-256 Digest |',
+    '|---|---|---|',
+  ];
+  for (const s of info.sections) {
+    lines.push(`| \`${sectionLabel(s)}\` | ${s.size} | \`${s.digest.slice(0, 16)}...\` |`);
+  }
+  return lines;
+}
+
+/** Renders a two-target Wasm comparison as GitHub-Flavored Markdown. */
+export function renderMarkdownComparison(aName, bName, aInfo, bInfo) {
+  const d = diff(aInfo, bInfo);
+  const explanation = explain(d);
+  const lines = [
+    `# Wasm Comparison: \`${aName}\` vs \`${bName}\``,
+    '',
+    `**Verdict:** ${d.sameHash ? 'Identical Wasm' : 'Different Wasm'}`,
+    '',
+    '| Property | A | B |',
+    '|---|---|---|',
+    `| Name | \`${aName}\` | \`${bName}\` |`,
+    `| Size | ${aInfo.size} bytes | ${bInfo.size} bytes |`,
+    `| SHA-256 | \`${aInfo.sha256.slice(0, 16)}...\` | \`${bInfo.sha256.slice(0, 16)}...\` |`,
+    '',
+    '## Explanation',
+    '',
+    ...explanation.map((line) => `- ${line}`),
+  ];
+  return lines;
 }
 
 const HASH = /^[0-9a-f]{64}$/;
@@ -66,6 +149,8 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const word = argv[i];
     if (word === '--json') options.json = true;
+    else if (word === '--markdown') options.markdown = true;
+    else if (word === '--verbose') options.verbose = true;
     else if (word === '--config') options.config = valueAfter(argv, i++, word);
     else if (word === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(argv, i++, word));
     else if (word === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(argv, i++, word));
@@ -74,6 +159,7 @@ export function parseArgs(argv) {
     else if (word.startsWith('--')) throw new Error(`unknown option ${word}`);
     else options.targets.push(parseTarget(word));
   }
+  if (options.json && options.markdown) throw new Error('--json and --markdown cannot be used together');
   if (options.targets.length === 0) throw new Error('give the Wasm to look at: a file, or deployed:<wasm hash>');
   if (options.targets.length > 2) throw new Error('give one target to look at, or two to compare');
   if (options.out !== undefined && !(options.targets.length === 1 && options.targets[0].kind === 'deployed')) {
@@ -156,15 +242,25 @@ async function main(argv) {
   }
   if (loaded.length === 1) {
     const [one] = loaded;
-    console.log(options.json ? JSON.stringify(toJson(one.name, one.info)) : describe(one.name, one.info).join('\n'));
+    if (options.json) console.log(JSON.stringify(toJson(one.name, one.info, { verbose: Boolean(options.verbose) })));
+    else if (options.markdown) console.log(renderMarkdownInfo(one.name, one.info).join('\n'));
+    else console.log(describe(one.name, one.info, { verbose: Boolean(options.verbose) }).join('\n'));
     return 0;
   }
   const [a, b] = loaded;
   const d = diff(a.info, b.info);
   if (options.json) {
-    const report = { same: d.sameHash, a: toJson(a.name, a.info), b: toJson(b.name, b.info), differences: d, explanation: explain(d) };
+    const report = {
+      same: d.sameHash,
+      a: toJson(a.name, a.info, { verbose: Boolean(options.verbose) }),
+      b: toJson(b.name, b.info, { verbose: Boolean(options.verbose) }),
+      differences: d,
+      explanation: explain(d),
+    };
     // A value that is missing on one side is null, not left out: JSON.stringify would drop an undefined one.
     console.log(JSON.stringify(report, (key, value) => (value === undefined ? null : value)));
+  } else if (options.markdown) {
+    console.log(renderMarkdownComparison(a.name, b.name, a.info, b.info).join('\n'));
   } else {
     console.log(compareReport(a.name, b.name, a.info, b.info).join('\n'));
   }
