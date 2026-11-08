@@ -87,3 +87,18 @@ test('the health check warns two weeks ahead, from one setting, so a weekly run 
   const extensionDays = (ledgers * 5) / 86_400;
   assert.ok(extensionDays >= days + 7, `an extension of ${extensionDays.toFixed(1)} days does not leave a week of green after a ${days}-day window`);
 });
+
+test('each action is used at one version in every workflow, so an update is never half done', () => {
+  const versions = new Map();
+  for (const { name, text } of workflows) {
+    for (const [, action, version] of text.matchAll(/^\s*(?:- )?uses:\s*([\w.-]+\/[\w.-]+)@(\S+)/gm)) {
+      if (!versions.has(action)) versions.set(action, new Map());
+      const where = versions.get(action);
+      where.set(version, [...(where.get(version) ?? []), name]);
+    }
+  }
+  assert.ok(versions.size >= 4, [...versions.keys()].join(', '));
+  for (const [action, where] of versions) {
+    assert.equal(where.size, 1, `${action} is used at several versions: ${[...where].map(([version, files]) => `${version} in ${files.join(', ')}`).join('; ')}`);
+  }
+});
