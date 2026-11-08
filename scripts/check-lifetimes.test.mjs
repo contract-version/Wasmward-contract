@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { test } from 'node:test';
 import { codeKeyXdr, daysFor, judge, judgeInstance, parseArgs, renderMarkdownLifetimes, rpcLookup, summarizeLifetimes } from './check-lifetimes.mjs';
 
@@ -436,4 +437,18 @@ test('parseArgs accepts --warn-ledgers, --markdown, and --verbose, and rejects i
   assert.equal(opts.verbose, true);
   assert.throws(() => parseArgs(['--warn-ledgers', '-5']), /--warn-ledgers must be/);
   assert.throws(() => parseArgs(['--json', '--markdown']), /cannot be used together/);
+});
+
+test('an expired or missing entry says how to fix it, with a script that exists', () => {
+  const expired = judge('v2', HASH, { latestLedger: 100, entries: [{ liveUntilLedgerSeq: 90 }] }, 3);
+  assert.equal(expired.ok, false);
+  assert.match(expired.text, /has expired \(archived\): bash scripts\/extend\.sh restores and extends it$/);
+  const missing = judge('v2', HASH, { latestLedger: 100, entries: [] }, 3);
+  assert.match(missing.text, /not found \(expired and archived, or never uploaded\); if it expired, bash scripts\/extend\.sh restores it$/);
+  assert.ok(existsSync(new URL('./extend.sh', import.meta.url)), 'the script the message names does not exist');
+});
+
+test('an entry that is still live does not carry the hint', () => {
+  const live = judge('v2', HASH, { latestLedger: 100, entries: [{ liveUntilLedgerSeq: 100 + 17_280 * 20 }] }, 3);
+  assert.doesNotMatch(live.text, /extend\.sh/);
 });

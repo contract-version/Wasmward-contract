@@ -43,14 +43,14 @@ export function daysFor(ledgers) {
  */
 function judgeEntry(name, noun, neverMade, result, minDays, { warnLedgers, verbose = false } = {}) {
   const entry = Array.isArray(result?.entries) ? result.entries[0] : undefined;
-  if (entry === undefined) return { ok: false, text: `${name}  ${noun} not found (expired and archived, or ${neverMade})` };
+  if (entry === undefined) return { ok: false, text: `${name}  ${noun} not found (expired and archived, or ${neverMade}); if it expired, bash scripts/extend.sh restores it` };
   const until = entry.liveUntilLedgerSeq;
   const latest = result.latestLedger;
   if (!Number.isFinite(until) || !Number.isFinite(latest)) {
     return { ok: false, text: `${name}  the RPC did not say when the ${noun} expires, so expiry cannot be ruled out` };
   }
   const left = until - latest;
-  if (left < 0) return { ok: false, text: `${name}  ${noun} has expired`, ledgersLeft: left };
+  if (left < 0) return { ok: false, text: `${name}  ${noun} has expired (archived): bash scripts/extend.sh restores and extends it`, ledgersLeft: left };
   const days = daysFor(left);
   const tooClose = left * SECONDS_PER_LEDGER < minDays * 86_400;
   const underWarn = !tooClose && warnLedgers !== undefined && left < warnLedgers;
