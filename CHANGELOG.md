@@ -39,7 +39,7 @@ docs/RECOVERY.md).
 
 ### Workflows
 
-- Weekly fixture health: Wasmward on the live fixture, then `fixture-status.mjs` with `--expect v1`, written to the job summary. It goes red 14 days before anything expires (it was 3, which one weekly run can miss, and the first deployment expired unnoticed).
+- Weekly fixture health also checks out the frontend and the backend and runs `sync-siblings.mjs --check`, so a redeploy that did not reach them is noticed. Wasmward on the live fixture, then `fixture-status.mjs` with `--expect v1`, written to the job summary. It goes red 14 days before anything expires (it was 3, which one weekly run can miss, and the first deployment expired unnoticed).
 - Monthly and by-hand reproducibility check: the pinned compiler must reproduce the deployed hashes, and the runner's stable
   one only reports.
 - CI: shellcheck on the shell scripts; the script tests on Node 18, 20 and 22 (Linux) and Node 22 (Windows); the upgrade tests on the Wasm CI just built.
