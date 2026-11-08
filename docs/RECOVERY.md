@@ -28,7 +28,13 @@ bash scripts/extend.sh --dry-run  # print the three commands first, run none
 
 It needs `testnet.json` and the identity that `scripts/deploy.sh` created in `.stellar-keys/`, both on the machine that deployed the fixture. Check the result with `node scripts/check-lifetimes.mjs --min-days 20`.
 
-**Fix, after it has gone.** An entry that has already expired is archived, and extending an archived entry fails. The Stellar CLI can restore one (`stellar contract restore`); these scripts do not do that, and none of them has tried it. The way that is scripted is to deploy again: see "It has to be redeployed" below.
+**Fix, after it has gone.** An entry that has already expired is archived, and `extend.sh` cannot extend an archived entry (the Stellar CLI answers "no changes detected"). It has to be restored first. Restoring a Wasm code entry is verified (2026-11-08):
+
+```bash
+stellar contract restore --wasm-hash <hash> --ledgers-to-extend 500000   --source-account wasmward-fixture --network testnet --config-dir ./.stellar-keys
+```
+
+It restores the entry and sets its life to that many ledgers, so no `extend.sh` is needed after it. Redeploying (below) restores the instance and the v1 code it uses by itself, but after the redeploy of 2026-11-08 v2's code was still archived and needed this command, so check with `node scripts/fixture-status.mjs --expect v1` and restore what it says has expired.
 
 ## It is running the wrong build
 

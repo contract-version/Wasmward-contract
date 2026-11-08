@@ -8,9 +8,12 @@ notice. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ### The deployed fixture
 
-Not redeployed since it was first deployed on 2026-10-07. Contract ID `CBR5ZFDI…DYPDPV`, v1 `a7a82511…` (the live
-build) and v2 `ec040ead…`. It was last extended on 2026-10-08 and expires about 29 days after that unless
-`scripts/extend.sh` is run again.
+Redeployed on 2026-11-08, because the first deployment (2026-10-07, last extended 2026-10-08) was not extended before it
+expired and its entries were archived. Contract ID `CD23JAK5…EHCHN`, v1 `a7a82511…` (the live build) and v2 `ec040ead…`:
+the same two hashes as before, since the Wasm is the same; only the contract ID is new. The instance and both builds' Wasm
+code were extended by 500,000 ledgers (about 29 days) on the day, so it expires around 2026-12-07 unless
+`scripts/extend.sh` is run again. After the redeploy v2's code was still archived and had to be restored explicitly (see
+docs/RECOVERY.md).
 
 ### Build
 
