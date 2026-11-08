@@ -65,8 +65,9 @@ deploy.sh ──► testnet.json (local, git-ignored) ──► sync-config.mjs 
                                                                               │
               ┌───────────────────────────────────────────────────────────────┤
               ▼                                                               ▼
-   fixture-health.yml (Wasmward action,                   Wasmward-frontend: src/demo-config.js, wasmward.json
-   fixture-status.mjs)                                    Wasmward-backend: README example, recorded responses
+   fixture-health.yml (Wasmward action,                   sync-siblings.mjs ──► Wasmward-frontend: src/demo-config.js, wasmward.json
+   fixture-status.mjs, and sync-siblings                                        Wasmward-backend: README example
+   --check on both repositories)                          record-testnet.mjs ─► Wasmward-backend: recorded responses
 ```
 
 ## The other repositories
