@@ -17,13 +17,15 @@ usage() {
   cat >&2 <<'USAGE'
 Usage: bash scripts/extend.sh [--dry-run] [ledgers]
 
-Extends the lifetime of the testnet fixture: the contract instance and the Wasm code of both builds.
+Extends the lifetime of the testnet fixture: the contract instance and the Wasm code of both builds. An entry that
+has already expired (is archived) cannot be extended, so each one is restored first; restoring an entry that is
+still live changes nothing.
 
   ledgers      how far to extend, as a whole number of ledgers (about 5 seconds each).
                Default 500000, about 29 days; the network caps it.
 
-  --dry-run    print the three commands that would be run, and run none of them. Needs only testnet.json:
-               no Stellar CLI, no identity, no network.
+  --dry-run    print the six commands that would be run (a restore and an extend for each of the three entries),
+               and run none of them. Needs only testnet.json: no Stellar CLI, no identity, no network.
   -h, --help   show this text
 
 Needs testnet.json and the identity that scripts/deploy.sh created in .stellar-keys.
@@ -82,25 +84,33 @@ CONTRACT_ID="$(field contractId)"
 V1_HASH="$(field v1.wasmHash)"
 V2_HASH="$(field v2.wasmHash)"
 
-# Runs the Stellar CLI, or in a dry run only says what it would run (on stdout, since that is the point).
-extend() {
+# Runs one Stellar CLI step (restore or extend), or in a dry run only says what it would run (on stdout, since
+# that is the point). Restoring an entry that is live is a no-op that exits 0 (tried on testnet), so it is always
+# done first: an archived entry would otherwise answer an extend with "no changes detected" and stay archived.
+step() {
+  local verb="$1"
+  shift
   if [ "$DRY_RUN" = 1 ]; then
-    printf 'would run: stellar contract extend'
+    printf 'would run: stellar contract %s' "$verb"
     printf ' %s' "$@"
     printf '\n'
   else
-    stellar contract extend "$@" >&2
+    stellar contract "$verb" "$@" >&2
   fi
 }
 
-echo "Extending the instance of $CONTRACT_ID by $LEDGERS ledgers..." >&2
-extend --id "$CONTRACT_ID" --durability persistent --ledgers-to-extend "$LEDGERS" \
-  --source-account "$IDENTITY" --network testnet "${CFG[@]}"
+echo "Extending the instance of $CONTRACT_ID by $LEDGERS ledgers (restoring it first if it was archived)..." >&2
+for verb in restore extend; do
+  step "$verb" --id "$CONTRACT_ID" --durability persistent --ledgers-to-extend "$LEDGERS" \
+    --source-account "$IDENTITY" --network testnet "${CFG[@]}"
+done
 
 for hash in "$V1_HASH" "$V2_HASH"; do
-  echo "Extending the Wasm code $hash..." >&2
-  extend --wasm-hash "$hash" --ledgers-to-extend "$LEDGERS" \
-    --source-account "$IDENTITY" --network testnet "${CFG[@]}"
+  echo "Extending the Wasm code $hash (restoring it first if it was archived)..." >&2
+  for verb in restore extend; do
+    step "$verb" --wasm-hash "$hash" --ledgers-to-extend "$LEDGERS" \
+      --source-account "$IDENTITY" --network testnet "${CFG[@]}"
+  done
 done
 if [ "$DRY_RUN" = 1 ]; then
   echo "Dry run: nothing was extended." >&2

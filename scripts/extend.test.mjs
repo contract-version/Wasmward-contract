@@ -15,6 +15,7 @@ const V2 = 'ec040ead4e157695a16a9723a5d95a44268f1b8da4c5f6aee7bf4f218dbdc875';
 
 const STUB = `#!/usr/bin/env bash
 printf '%s\\n' "$*" >> "$STELLAR_CALLS"
+if [ -n "\${STUB_FAIL_ON:-}" ] && [ "$1 $2" = "contract $STUB_FAIL_ON" ]; then echo "stub: $2 failed" >&2; exit 1; fi
 if [ "$1 $2" = "keys address" ] && [ -n "\${STUB_NO_IDENTITY:-}" ]; then exit 1; fi
 if [ "$1 $2" = "keys address" ]; then echo GADMIN; fi
 exit "\${STUB_EXIT:-0}"
@@ -61,6 +62,44 @@ test('extends the instance and the code of both builds, by 500000 ledgers unless
     assert.match(extend[1], new RegExp(`--wasm-hash ${V1} --ledgers-to-extend 500000 `));
     assert.match(extend[2], new RegExp(`--wasm-hash ${V2} --ledgers-to-extend 500000 `));
     for (const call of extend) assert.match(call, /--source-account wasmward-fixture --network testnet /);
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('restores each entry before extending it, because an archived entry cannot be extended', async () => {
+  const box = sandbox();
+  try {
+    assert.equal((await box.run()).status, 0);
+    const calls = box.calls().filter((call) => /^contract (restore|extend)/.test(call));
+    assert.deepEqual(
+      calls.map((call) => call.split(' ').slice(0, 3).join(' ')),
+      [
+        'contract restore --id',
+        'contract extend --id',
+        'contract restore --wasm-hash',
+        'contract extend --wasm-hash',
+        'contract restore --wasm-hash',
+        'contract extend --wasm-hash',
+      ],
+    );
+    // The restore and the extend for an entry name the same entry and the same number of ledgers.
+    assert.equal(calls[0].replace('restore', 'extend'), calls[1]);
+    assert.equal(calls[2].replace('restore', 'extend'), calls[3]);
+    assert.equal(calls[4].replace('restore', 'extend'), calls[5]);
+    assert.match(calls[2], new RegExp(`--wasm-hash ${V1} `));
+    assert.match(calls[4], new RegExp(`--wasm-hash ${V2} `));
+  } finally {
+    box.cleanup();
+  }
+});
+
+test('an extend that follows a failed restore is not attempted: the failure ends the run', async () => {
+  const box = sandbox();
+  try {
+    const run = await box.run([], { STUB_FAIL_ON: 'restore' });
+    assert.notEqual(run.status, 0);
+    assert.deepEqual(box.calls().filter((call) => /^contract (restore|extend)/.test(call)).map((call) => call.split(' ')[1]), ['restore']);
   } finally {
     box.cleanup();
   }
@@ -163,17 +202,20 @@ test('more than one number of ledgers is refused rather than one of them being p
   }
 });
 
-test('--dry-run prints the three commands and runs none of them', async () => {
+test('--dry-run prints the six commands (a restore and an extend for each entry) and runs none of them', async () => {
   const box = sandbox();
   try {
     const run = await box.run(['--dry-run', '777']);
     assert.equal(run.status, 0, run.stderr);
     assert.deepEqual(box.calls(), [], 'the stand-in Stellar CLI was called');
     const lines = run.stdout.trim().split('\n');
-    assert.equal(lines.length, 3);
-    assert.match(lines[0], new RegExp(`^would run: stellar contract extend --id ${CONTRACT} --durability persistent --ledgers-to-extend 777 `));
-    assert.match(lines[1], new RegExp(`--wasm-hash ${V1} --ledgers-to-extend 777 `));
-    assert.match(lines[2], new RegExp(`--wasm-hash ${V2} --ledgers-to-extend 777 `));
+    assert.equal(lines.length, 6);
+    assert.match(lines[0], new RegExp(`^would run: stellar contract restore --id ${CONTRACT} --durability persistent --ledgers-to-extend 777 `));
+    assert.match(lines[1], new RegExp(`^would run: stellar contract extend --id ${CONTRACT} --durability persistent --ledgers-to-extend 777 `));
+    assert.match(lines[2], new RegExp(`restore --wasm-hash ${V1} --ledgers-to-extend 777 `));
+    assert.match(lines[3], new RegExp(`extend --wasm-hash ${V1} --ledgers-to-extend 777 `));
+    assert.match(lines[4], new RegExp(`restore --wasm-hash ${V2} --ledgers-to-extend 777 `));
+    assert.match(lines[5], new RegExp(`extend --wasm-hash ${V2} --ledgers-to-extend 777 `));
     assert.match(run.stderr, /Dry run: nothing was extended/);
     assert.doesNotMatch(run.stderr, /Done\./);
   } finally {
