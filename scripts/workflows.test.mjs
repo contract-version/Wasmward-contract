@@ -70,3 +70,20 @@ test('the scheduled run is weekly, and can also be started by hand', () => {
   assert.match(health, /^ {4}- cron: '\d+ \d+ \* \* [0-6]'/m);
   assert.match(health, /^ {2}workflow_dispatch:/m);
 });
+
+test('the health check warns two weeks ahead, from one setting, so a weekly run cannot miss the window', () => {
+  const health = workflows.find((w) => w.name === 'fixture-health.yml').text;
+  const days = Number(health.match(/^ {6}MIN_DAYS: '(\d+)'$/m)?.[1]);
+  assert.ok(Number.isInteger(days), 'MIN_DAYS is not set once, at the top of the job');
+  // The check runs once a week, so a window of N days holds at least floor(N / 7) runs. One run can fail to run at all.
+  assert.ok(Math.floor(days / 7) >= 2, `${days} days holds fewer than two weekly runs`);
+  // Both checks read the one setting, and neither has a number of its own.
+  assert.match(health, /min-ttl-days: \$\{\{ env\.MIN_DAYS \}\}/);
+  assert.match(health, /--min-days "\$MIN_DAYS"/);
+  assert.doesNotMatch(health, /min-ttl-days: '\d+'|--min-days \d+/);
+  // An extension has to outlast the warning window with room to spare, or the check would be red right after a fix.
+  const extendSh = readFileSync(new URL('./extend.sh', import.meta.url), 'utf8');
+  const ledgers = Number(extendSh.match(/^LEDGERS=(\d+)$/m)?.[1]);
+  const extensionDays = (ledgers * 5) / 86_400;
+  assert.ok(extensionDays >= days + 7, `an extension of ${extensionDays.toFixed(1)} days does not leave a week of green after a ${days}-day window`);
+});
