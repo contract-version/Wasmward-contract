@@ -19,7 +19,7 @@ node scripts/check-lifetimes.mjs            # how long the instance and each bui
 
 **Sign.** The weekly [Fixture health](../.github/workflows/fixture-health.yml) run is red, `wasmward check` says `missing` or `archived`, or `check-lifetimes.mjs` exits 1 with "has expired" or "not found". Testnet entries live about a week after they were last extended.
 
-**Fix, while it is still alive** (the usual case: the run was red because under three days were left):
+**Fix, while it is still alive** (the usual case: the run was red because under two weeks were left, which is the warning: it starts a fortnight before anything expires):
 
 ```bash
 bash scripts/extend.sh            # the instance and both builds' Wasm code, about 29 days
