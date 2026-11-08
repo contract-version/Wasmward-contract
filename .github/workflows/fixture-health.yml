@@ -40,6 +40,21 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      # The frontend and the backend pin this contract (its ID and v1 hash, and the backend's recorded answers). A redeploy
+      # that did not reach them leaves the demo watching a contract that is gone, and nothing else would notice.
+      - name: Check out the frontend, which pins this fixture
+        uses: actions/checkout@v7
+        with:
+          repository: contract-version/Wasmward-frontend
+          path: siblings/Wasmward-frontend
+      - name: Check out the backend, which pins this fixture
+        uses: actions/checkout@v7
+        with:
+          repository: contract-version/Wasmward-backend
+          path: siblings/Wasmward-backend
+      - name: Check that both pin this contract
+        run: node scripts/sync-siblings.mjs --check --frontend siblings/Wasmward-frontend --backend siblings/Wasmward-backend
+
       - name: Check the builds, the lifetimes and that the fixture runs v1
         run: |
           status=0

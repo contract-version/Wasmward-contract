@@ -102,3 +102,13 @@ test('each action is used at one version in every workflow, so an update is neve
     assert.equal(where.size, 1, `${action} is used at several versions: ${[...where].map(([version, files]) => `${version} in ${files.join(', ')}`).join('; ')}`);
   }
 });
+
+test('the health check also looks at the repositories that pin the fixture, so a redeploy cannot stop halfway', () => {
+  const health = workflows.find((w) => w.name === 'fixture-health.yml').text;
+  for (const repo of ['Wasmward-frontend', 'Wasmward-backend']) {
+    assert.match(health, new RegExp(`repository: contract-version/${repo}\\r?\\n\\s+path: siblings/${repo}`), `${repo} is not checked out`);
+  }
+  assert.match(health, /node scripts\/sync-siblings\.mjs --check --frontend siblings\/Wasmward-frontend --backend siblings\/Wasmward-backend/);
+  // They are checked out after this repository, not instead of it: the scripts run from the root.
+  assert.ok(health.indexOf('uses: actions/checkout@v7\n\n') < health.indexOf('repository: contract-version/Wasmward-frontend'));
+});
