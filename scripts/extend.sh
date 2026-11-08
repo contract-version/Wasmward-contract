@@ -19,7 +19,8 @@ Usage: bash scripts/extend.sh [--dry-run] [ledgers]
 
 Extends the lifetime of the testnet fixture: the contract instance and the Wasm code of both builds. An entry that
 has already expired (is archived) cannot be extended, so each one is restored first; restoring an entry that is
-still live changes nothing.
+still live changes nothing. When it has finished it runs scripts/fixture-status.mjs and exits 1 if the fixture still
+needs attention, because an extend can be a no-op.
 
   ledgers      how far to extend, as a whole number of ledgers (about 5 seconds each).
                Default 500000, about 29 days; the network caps it.
@@ -114,6 +115,15 @@ for hash in "$V1_HASH" "$V2_HASH"; do
 done
 if [ "$DRY_RUN" = 1 ]; then
   echo "Dry run: nothing was extended." >&2
+elif [ -f scripts/fixture-status.mjs ] && [ -f fixture.wasmward.json ] && command -v node >/dev/null; then
+  # Look, rather than trust that the transactions did what they were asked: an extend can be a no-op.
+  echo "Checking the result..." >&2
+  if node scripts/fixture-status.mjs --expect v1 >&2; then
+    echo "Done." >&2
+  else
+    echo "error: the transactions went through, but the fixture still needs attention (see above and docs/RECOVERY.md)" >&2
+    exit 1
+  fi
 else
   echo "Done. Check the result with: node scripts/fixture-status.mjs --expect v1" >&2
 fi

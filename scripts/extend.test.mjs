@@ -37,6 +37,7 @@ function sandbox({ withTestnetJson = true } = {}) {
   writeFileSync(calls, '');
 
   return {
+    dir,
     calls: () => readFileSync(calls, 'utf8').split('\n').filter(Boolean),
     run: (args = [], env = {}) =>
       new Promise((resolve) => {
@@ -262,5 +263,103 @@ test('after a real extend it points at the script in this repository for checkin
     assert.doesNotMatch(run.stderr, /wasmward check/);
   } finally {
     box.cleanup();
+  }
+});
+
+// --- The check that follows a real extend ---------------------------------------------------------------------
+
+const u32 = (...values) => Buffer.from(values.flatMap((value) => [(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255]));
+const instanceXdr = (hash) => Buffer.concat([u32(6, 0, 1), Buffer.alloc(32, 3), u32(20, 1, 19, 0), Buffer.from(hash, 'hex')]).toString('base64');
+
+/**
+ * A sandbox that also has the real status scripts, a config, and a local stand-in RPC that says the instance runs `live`
+ * with `days` left and that both builds' code has `codeDays` left.
+ */
+async function sandboxWithStatus({ live = V1, days = 28, codeDays = 28 } = {}) {
+  const { createServer } = await import('node:http');
+  const { codeKeyXdr, instanceKeyXdr } = await import('./ledger-keys.mjs');
+  const { readdirSync } = await import('node:fs');
+  const box = sandbox();
+  const DAY = 17_280;
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => (body += chunk));
+    req.on('end', () => {
+      const key = JSON.parse(body).params.keys[0];
+      let result = { latestLedger: 100, entries: [] };
+      if (key === instanceKeyXdr(CONTRACT)) result = { latestLedger: 100, entries: [{ xdr: instanceXdr(live), liveUntilLedgerSeq: 100 + days * DAY }] };
+      else if (key === codeKeyXdr(V1) || key === codeKeyXdr(V2)) result = { latestLedger: 100, entries: [{ liveUntilLedgerSeq: 100 + codeDays * DAY }] };
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const here = new URL('./', import.meta.url);
+  for (const name of readdirSync(here).filter((file) => file.endsWith('.mjs') && !file.endsWith('.test.mjs'))) {
+    copyFileSync(new URL(name, here), join(box.dir, 'scripts', name));
+  }
+  writeFileSync(
+    join(box.dir, 'fixture.wasmward.json'),
+    JSON.stringify({
+      version: 1,
+      network: { rpcUrl: `http://127.0.0.1:${server.address().port}`, passphrase: 'x' },
+      contracts: { fixture: { contractId: CONTRACT, supported: [{ wasmHash: V1, label: 'v1' }, { wasmHash: V2, label: 'v2' }] } },
+    }),
+  );
+  return {
+    ...box,
+    cleanup: async () => {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+      box.cleanup();
+    },
+  };
+}
+
+test('after a real extend it looks at the fixture and says Done only if all is right', async () => {
+  const box = await sandboxWithStatus();
+  try {
+    const run = await box.run();
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stderr, /Checking the result\.\.\./);
+    assert.match(run.stderr, /The fixture is all right\./);
+    assert.match(run.stderr, /^Done\.$/m);
+  } finally {
+    await box.cleanup();
+  }
+});
+
+test('if the fixture still needs attention after the extend, the script fails and says so', async () => {
+  const box = await sandboxWithStatus({ codeDays: 1 });
+  try {
+    const run = await box.run();
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /under the 3-day minimum/);
+    assert.match(run.stderr, /error: the transactions went through, but the fixture still needs attention/);
+    assert.doesNotMatch(run.stderr, /^Done\.$/m);
+  } finally {
+    await box.cleanup();
+  }
+});
+
+test('a fixture left on the wrong build is reported after the extend too', async () => {
+  const box = await sandboxWithStatus({ live: V2 });
+  try {
+    const run = await box.run();
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /runs v2 .*expected v1/);
+  } finally {
+    await box.cleanup();
+  }
+});
+
+test('a dry run does not look at the network, even where the status script is there', async () => {
+  const box = await sandboxWithStatus({ codeDays: 1 });
+  try {
+    const run = await box.run(['--dry-run']);
+    assert.equal(run.status, 0, run.stderr);
+    assert.doesNotMatch(run.stderr, /Checking the result/);
+  } finally {
+    await box.cleanup();
   }
 });
