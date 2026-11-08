@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Add the Wasm target
         run: rustup target add wasm32v1-none
@@ -95,7 +95,7 @@ jobs:
             cargo test --locked --test upgrade -- --ignored
 
       - name: Keep the built Wasm and its hashes
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wasm-${{ github.sha }}
           path: |
@@ -117,8 +117,8 @@ jobs:
       matrix:
         node: [18, 20, 22]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
       # deploy.sh and extend.sh only run against the real network, so CI never executes them; at least make
@@ -143,8 +143,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Test the scripts

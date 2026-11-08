@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The Wasmward action builds Wasmward and runs `wasmward check`. This is the whole job.
       - name: Check the fixture (at least 3 days of life left)

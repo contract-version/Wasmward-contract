@@ -7,7 +7,7 @@
 //
 // A target is a file, or deployed:<hash> to read the Wasm of that hash from the network. For that, give
 // [--rpc-url URL] or [--config FILE] (default fixture.wasmward.json, whose network is used) and optionally
-// [--timeout-ms N]. The bytes that come back are checked: their SHA-256 must be the hash that was asked for.
+// [--timeout-ms N] and [--retries N]. The bytes that come back are checked: their SHA-256 must be the hash that was asked for.
 //
 // With one target it describes it. With two it compares them and says how they differ, which answers
 // "why does my build have a different hash from the deployed one?". Add --json for one JSON object instead
@@ -18,7 +18,7 @@
 // deployed: target talks to the network, and then only to read.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
+import { parseRetries, parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { codeKeyXdr } from './ledger-keys.mjs';
 import { rpcLookup } from './rpc.mjs';
 import { parseCodeEntry } from './wasm-code.mjs';
@@ -69,6 +69,7 @@ export function parseArgs(argv) {
     else if (word === '--config') options.config = valueAfter(argv, i++, word);
     else if (word === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(argv, i++, word));
     else if (word === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(argv, i++, word));
+    else if (word === '--retries') options.retries = parseRetries(valueAfter(argv, i++, word));
     else if (word === '--out') options.out = valueAfter(argv, i++, word);
     else if (word.startsWith('--')) throw new Error(`unknown option ${word}`);
     else options.targets.push(parseTarget(word));
@@ -112,7 +113,7 @@ export async function load(target, options) {
     return { name: target.path, info: readWasm(bytes), bytes };
   }
 
-  const result = await rpcLookup(rpcUrlFor(options), codeKeyXdr(target.hash), { timeoutMs: options.timeoutMs });
+  const result = await rpcLookup(rpcUrlFor(options), codeKeyXdr(target.hash), { timeoutMs: options.timeoutMs, retries: options.retries });
   const entry = Array.isArray(result.entries) ? result.entries[0] : undefined;
   if (entry === undefined) throw new Error(`the network has no Wasm with hash ${target.hash} (expired and archived, or never uploaded)`);
   const parsed = parseCodeEntry(entry.xdr);

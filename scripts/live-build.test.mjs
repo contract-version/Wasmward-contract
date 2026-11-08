@@ -73,10 +73,11 @@ test('an answer that is not an instance entry throws, so the run ends with exit 
 
 test('the options are read and refused like the other scripts', () => {
   assert.deepEqual(parseArgs([]), { config: 'fixture.wasmward.json', json: false, timeoutMs: 15_000 });
-  const options = parseArgs(['--expect', 'v1', '--json', '--config', 'x.json', '--timeout-ms', '500', '--rpc-url', 'https://rpc.example.org']);
-  assert.deepEqual(options, { config: 'x.json', json: true, timeoutMs: 500, expect: 'v1', rpcUrl: 'https://rpc.example.org' });
+  const options = parseArgs(['--expect', 'v1', '--json', '--config', 'x.json', '--timeout-ms', '500', '--retries', '2', '--rpc-url', 'https://rpc.example.org']);
+  assert.deepEqual(options, { config: 'x.json', json: true, timeoutMs: 500, retries: 2, expect: 'v1', rpcUrl: 'https://rpc.example.org' });
   assert.throws(() => parseArgs(['--expect']), /--expect needs a value/);
   assert.throws(() => parseArgs(['--expect', '--json']), /--expect needs a value/);
+  assert.throws(() => parseArgs(['--retries', '99']), /--retries must be/);
   assert.throws(() => parseArgs(['--nope']), /unknown option --nope/);
   assert.throws(() => parseArgs(['--rpc-url', 'file:///x']), /https:\/\/ or http:\/\//);
 });

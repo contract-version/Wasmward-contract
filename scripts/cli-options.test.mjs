@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
+import { parseRetries, parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 
 test('valueAfter returns the next word', () => {
   assert.equal(valueAfter(['--config', 'a.json'], 0, '--config'), 'a.json');
@@ -41,5 +41,17 @@ test('parseTimeout accepts whole milliseconds from 100 to 120000, inclusive', ()
 test('parseTimeout refuses everything else', () => {
   for (const bad of ['99', '120001', '1.5', 'abc', '', '-5', 'Infinity', 'NaN', '1e3x']) {
     assert.throws(() => parseTimeout(bad), /--timeout-ms must be a whole number from 100 to 120000/, bad);
+  }
+});
+
+test('parseRetries accepts whole numbers from 0 to 10, inclusive', () => {
+  assert.equal(parseRetries('0'), 0);
+  assert.equal(parseRetries('3'), 3);
+  assert.equal(parseRetries('10'), 10);
+});
+
+test('parseRetries refuses everything else', () => {
+  for (const bad of ['-1', '11', '1.5', 'abc', '', 'Infinity', 'NaN']) {
+    assert.throws(() => parseRetries(bad), /--retries must be a whole number from 0 to 10/, bad);
   }
 });

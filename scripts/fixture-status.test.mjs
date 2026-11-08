@@ -105,10 +105,11 @@ test('an entry the RPC answered nonsense for makes it throw, so the run ends wit
 
 test('the options are read like the other scripts, with --expect and --min-days', () => {
   assert.deepEqual(parseArgs([]), { config: 'fixture.wasmward.json', minDays: 3, json: false, timeoutMs: 15_000 });
-  const parsed = parseArgs(['--expect', 'v1', '--min-days', '7', '--json', '--timeout-ms', '800']);
-  assert.deepEqual([parsed.expect, parsed.minDays, parsed.json, parsed.timeoutMs], ['v1', 7, true, 800]);
+  const parsed = parseArgs(['--expect', 'v1', '--min-days', '7', '--json', '--timeout-ms', '800', '--retries', '3']);
+  assert.deepEqual([parsed.expect, parsed.minDays, parsed.json, parsed.timeoutMs, parsed.retries], ['v1', 7, true, 800, 3]);
   assert.throws(() => parseArgs(['--min-days', '-1']), /0 or more/);
   assert.throws(() => parseArgs(['--min-days', 'soon']), /0 or more/);
+  assert.throws(() => parseArgs(['--retries', '-1']), /--retries must be/);
   assert.throws(() => parseArgs(['--expect']), /--expect needs a value/);
   assert.throws(() => parseArgs(['--nope']), /unknown option --nope/);
 });

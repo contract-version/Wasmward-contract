@@ -8,9 +8,10 @@
 // instance too, so it can be used without Wasmward.
 //
 //   node scripts/check-lifetimes.mjs [--config fixture.wasmward.json] [--min-days 3] [--json] [--rpc-url URL]
+//                                    [--timeout-ms N] [--retries N]
 //
 // --rpc-url asks that RPC instead of the one in the config. --timeout-ms is how long to wait for one answer
-// (default 15000); a timeout, a 5xx or a 429 is tried once more before giving up.
+// (default 15000); a timeout, a 5xx or a 429 is tried once more before giving up (or --retries times).
 //
 // With --json it prints one JSON object instead of text: { ok, minDays, contracts: [{ name, contractId, ok,
 // ledgersLeft?, daysLeft?, message }], builds: [{ label, wasmHash, ok, ledgersLeft?, daysLeft?, message }] },
@@ -20,7 +21,7 @@
 // 2 the config or the RPC could not be used. No dependencies; needs Node 18 or newer. Nothing secret is read.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
+import { parseRetries, parseRpcUrl, parseTimeout, valueAfter } from './cli-options.mjs';
 import { codeKeyXdr, instanceKeyXdr } from './ledger-keys.mjs';
 import { rpcLookup } from './rpc.mjs';
 import { helpFromHeader, wantsHelp } from './help.mjs';
@@ -77,6 +78,7 @@ export function parseArgs(argv) {
     else if (flag === '--min-days') options.minDays = Number(valueAfter(argv, i++, flag));
     else if (flag === '--rpc-url') options.rpcUrl = parseRpcUrl(valueAfter(argv, i++, flag));
     else if (flag === '--timeout-ms') options.timeoutMs = parseTimeout(valueAfter(argv, i++, flag));
+    else if (flag === '--retries') options.retries = parseRetries(valueAfter(argv, i++, flag));
     else if (flag === '--json') options.json = true;
     else throw new Error(`unknown option ${flag}`);
   }
@@ -123,16 +125,16 @@ async function main(argv) {
   // The instance of each contract that has an address, then the Wasm code of every build.
   const buildReports = [];
   const contracts = [];
-  const timeoutMs = options.timeoutMs;
+  const rpcOptions = { timeoutMs: options.timeoutMs, retries: options.retries };
   try {
     for (const [name, contract] of Object.entries(config?.contracts ?? {})) {
       if (contract.contractId === undefined) continue;
-      const result = await rpcLookup(rpcUrl, instanceKeyXdr(contract.contractId), { timeoutMs });
+      const result = await rpcLookup(rpcUrl, instanceKeyXdr(contract.contractId), rpcOptions);
       const verdict = judgeInstance(name, contract.contractId, result, options.minDays);
       contracts.push(record(verdict, { name, contractId: contract.contractId }));
     }
     for (const build of builds) {
-      const result = await rpcLookup(rpcUrl, codeKeyXdr(build.wasmHash), { timeoutMs });
+      const result = await rpcLookup(rpcUrl, codeKeyXdr(build.wasmHash), rpcOptions);
       const verdict = judge(build.label ?? 'build', build.wasmHash, result, options.minDays);
       buildReports.push(record(verdict, { label: build.label ?? 'build', wasmHash: build.wasmHash }));
     }
