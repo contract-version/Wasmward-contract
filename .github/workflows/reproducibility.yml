@@ -34,7 +34,7 @@ jobs:
           - rust: stable
             informational: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The CLI builds against the system's D-Bus and udev libraries; the first run failed without them.
       - name: Install what the Stellar CLI needs to build
