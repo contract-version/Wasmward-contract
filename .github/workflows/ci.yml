@@ -65,7 +65,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       # v1 and v2 are only a clean upgrade pair if they share compiler, SDK and every section except the code.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Check that v1 and v2 differ only in their code
