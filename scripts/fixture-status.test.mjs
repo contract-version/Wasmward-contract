@@ -200,3 +200,36 @@ test('statusOf, summarizeStatus, and renderMarkdownStatus support --warn-ledgers
   assert.throws(() => parseArgs(['--warn-ledgers', '-1']), /--warn-ledgers must be/);
   assert.throws(() => parseArgs(['--json', '--markdown']), /cannot be used together/);
 });
+
+test('each live entry says the day it runs out, counted from the clock it is given, in the text and as data', async () => {
+  const now = () => Date.parse('2026-11-08T12:00:00Z');
+  // 20 days of ledgers at 5 seconds each is 20 days after the clock.
+  const status = await statusOf(config(), options(), fakeLookup().lookup, now);
+  assert.equal(status.contracts[0].instance.expiresAround, '2026-11-28');
+  assert.ok(status.contracts[0].instance.message.endsWith('(until about 2026-11-28)'));
+  assert.deepEqual(status.builds.map((build) => build.expiresAround), ['2026-11-28', '2026-11-28']);
+  assert.ok(status.builds.every((build) => build.message.endsWith('(until about 2026-11-28)')));
+});
+
+test('the date follows the entry: a shorter life gives an earlier day, and each entry has its own', async () => {
+  const now = () => Date.parse('2026-11-08T12:00:00Z');
+  const status = await statusOf(config(), options({ minDays: 0 }), fakeLookup({ days: 5, codeDays: { [V1]: 10, [V2]: 3 } }).lookup, now);
+  assert.equal(status.contracts[0].instance.expiresAround, '2026-11-13');
+  assert.deepEqual(status.builds.map((build) => build.expiresAround), ['2026-11-18', '2026-11-11']);
+});
+
+test('an expired or missing entry has no date, and no sentence that would claim one', async () => {
+  const status = await statusOf(config(), options(), fakeLookup({ instance: false, codeDays: { [V1]: -2, [V2]: undefined } }).lookup, () => 0);
+  assert.equal(status.contracts[0].instance.expiresAround, undefined);
+  for (const build of status.builds) {
+    assert.equal(build.expiresAround, undefined);
+    assert.ok(!build.message.includes('until about'), build.message);
+  }
+});
+
+test('the date uses the real clock when none is given', async () => {
+  const before = Date.now();
+  const status = await statusOf(config(), options(), fakeLookup().lookup);
+  const expected = new Date(before + 20 * 17_280 * 5_000).toISOString().slice(0, 10);
+  assert.ok([expected, new Date(Date.now() + 20 * 17_280 * 5_000).toISOString().slice(0, 10)].includes(status.contracts[0].instance.expiresAround));
+});

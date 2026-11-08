@@ -94,11 +94,14 @@ export function renderMarkdownStatus(status, options = {}) {
  * The verdicts for a config, given a function that asks the RPC for one ledger key. Returns
  * { ok, contracts, builds }. Throws if an answer is not what an RPC gives, so the caller can exit 2.
  */
-export async function statusOf(config, options, lookup) {
+export async function statusOf(config, options, lookup, now = Date.now) {
   const contracts = [];
   const builds = [];
   let ok = true;
   const judgeExtras = { warnLedgers: options.warnLedgers, verbose: Boolean(options.verbose) };
+  // The day an entry runs out, which is what someone deciding when to extend wants, and "28 days" does not say.
+  const expiry = (ledgersLeft) => (ledgersLeft === undefined || ledgersLeft < 0 ? {} : { expiresAround: new Date(now() + ledgersLeft * 5_000).toISOString().slice(0, 10) });
+  const withDate = (text, dated) => (dated.expiresAround === undefined ? text : `${text} (until about ${dated.expiresAround})`);
 
   for (const [name, contract] of Object.entries(config.contracts ?? {})) {
     if (typeof contract?.contractId !== 'string') continue;
@@ -107,11 +110,12 @@ export async function statusOf(config, options, lookup) {
     const live = judgeLive(name, contract.contractId, result, contract.supported ?? [], options.expect);
     const good = instance.ok && live.ok;
     if (!good) ok = false;
+    const instanceDate = expiry(instance.ledgersLeft);
     contracts.push({
       name,
       contractId: contract.contractId,
       ok: good,
-      instance: { ok: instance.ok, message: instance.text, ...(instance.ledgersLeft === undefined ? {} : { ledgersLeft: instance.ledgersLeft, daysLeft: daysFor(Math.max(0, instance.ledgersLeft)) }) },
+      instance: { ok: instance.ok, message: withDate(instance.text, instanceDate), ...(instance.ledgersLeft === undefined ? {} : { ledgersLeft: instance.ledgersLeft, daysLeft: daysFor(Math.max(0, instance.ledgersLeft)) }), ...instanceDate },
       live,
     });
   }
@@ -125,12 +129,14 @@ export async function statusOf(config, options, lookup) {
       const label = build.label ?? 'build';
       const verdict = judge(label, build.wasmHash, await lookup(codeKeyXdr(build.wasmHash)), options.minDays, judgeExtras);
       if (!verdict.ok) ok = false;
+      const buildDate = expiry(verdict.ledgersLeft);
       builds.push({
         label,
         wasmHash: build.wasmHash,
         ok: verdict.ok,
-        message: verdict.text,
+        message: withDate(verdict.text, buildDate),
         ...(verdict.ledgersLeft === undefined ? {} : { ledgersLeft: verdict.ledgersLeft, daysLeft: daysFor(Math.max(0, verdict.ledgersLeft)) }),
+        ...buildDate,
       });
     }
   }
