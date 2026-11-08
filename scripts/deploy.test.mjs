@@ -281,6 +281,12 @@ test('tells the user what to run next', async () => {
   try {
     const run = await box.run();
     assert.match(run.stderr, /Next: node scripts\/sync-config\.mjs/);
+    // The steps after it are the ones a redeploy used to leave to memory, and each names a script that exists.
+    assert.match(run.stderr, /Then: node scripts\/sync-siblings\.mjs and node scripts\/record-testnet\.mjs/);
+    assert.match(run.stderr, /Then: bash scripts\/extend\.sh .* node scripts\/fixture-status\.mjs --expect v1/);
+    for (const script of ['sync-config.mjs', 'sync-siblings.mjs', 'record-testnet.mjs', 'extend.sh', 'fixture-status.mjs']) {
+      assert.ok(existsSync(new URL(`./${script}`, import.meta.url)), `deploy.sh names ${script}, which does not exist`);
+    }
   } finally {
     box.cleanup();
   }

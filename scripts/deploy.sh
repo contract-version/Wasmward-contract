@@ -148,3 +148,5 @@ cat > testnet.json <<JSON
 JSON
 log "Wrote testnet.json (public values only; the secret stays in .env)."
 log "Next: node scripts/sync-config.mjs   (rewrites fixture.wasmward.json from it)"
+log "Then: node scripts/sync-siblings.mjs and node scripts/record-testnet.mjs   (the frontend and the backend pin the contract too)"
+log "Then: bash scripts/extend.sh   (a new deployment lives about a week) and node scripts/fixture-status.mjs --expect v1"
